@@ -1,6 +1,6 @@
-import { Injectable } from '@nestjs/common';
-import { DatabaseService } from '../database/database.service';
+import { Injectable, ForbiddenException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { DatabaseService } from 'src/database/database.service';
 
 @Injectable()
 export class AssignmentService {
@@ -46,5 +46,126 @@ export class AssignmentService {
     return this.prisma.responsibilityAssignment.delete({
       where: { id },
     });
+  }
+
+  /**
+   * Scoped findAll - restricts based on user role and sub-department
+   */
+  async findAllScoped(
+    userId: number,
+    userRole: string,
+    userSubDepartmentId: number | null,
+    staffId?: number,
+    responsibilityId?: number,
+    status?: string,
+  ) {
+    // STAFF: Only their own assignments
+    if (userRole === 'STAFF') {
+      const where: any = { staffId: userId };
+      if (responsibilityId) where.responsibilityId = responsibilityId;
+      if (status) where.status = status;
+
+      return this.prisma.responsibilityAssignment.findMany({
+        where,
+        include: {
+          responsibility: {
+            select: {
+              id: true,
+              title: true,
+              description: true,
+              cycle: true,
+              subDepartmentId: true,
+            },
+          },
+          staff: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              role: true,
+            },
+          },
+          workSubmission: true,
+        },
+      });
+    }
+
+    // MANAGER: Must have sub-department assigned
+    if (userRole === 'MANAGER') {
+      if (!userSubDepartmentId) {
+        // Manager without sub-department cannot see any assignments
+        return [];
+      }
+
+      const where: any = {
+        responsibility: {
+          subDepartmentId: userSubDepartmentId,
+        },
+      };
+
+      // Apply optional filters (but still scoped to sub-department)
+      if (staffId) where.staffId = staffId;
+      if (responsibilityId) where.responsibilityId = responsibilityId;
+      if (status) where.status = status;
+
+      return this.prisma.responsibilityAssignment.findMany({
+        where,
+        include: {
+          responsibility: {
+            select: {
+              id: true,
+              title: true,
+              description: true,
+              cycle: true,
+              subDepartmentId: true,
+            },
+          },
+          staff: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              role: true,
+            },
+          },
+          workSubmission: true,
+        },
+      });
+    }
+
+    // ADMIN: Full access
+    if (userRole === 'ADMIN') {
+      const where: any = {};
+      if (staffId) where.staffId = staffId;
+      if (responsibilityId) where.responsibilityId = responsibilityId;
+      if (status) where.status = status;
+
+      return this.prisma.responsibilityAssignment.findMany({
+        where,
+        include: {
+          responsibility: {
+            select: {
+              id: true,
+              title: true,
+              description: true,
+              cycle: true,
+              subDepartmentId: true,
+            },
+          },
+          staff: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              role: true,
+            },
+          },
+          workSubmission: true,
+        },
+      });
+    }
+
+    // Unknown role - return empty
+    return [];
   }
 }

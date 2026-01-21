@@ -43,6 +43,8 @@ export class ResponsibilitiesService {
         throw new BadRequestException('Staff can only create responsibilities for the current day');
       }
 
+      const todayEnd = this.getEndOfDay(new Date());
+
       // Use transaction to create responsibility and auto-assign to this staff member
       const result = await this.databaseService.$transaction(async (tx) => {
         // Create the responsibility with required relations
@@ -52,7 +54,7 @@ export class ResponsibilitiesService {
             description: (createResponsibilityDto as any).description,
             cycle: (createResponsibilityDto as any).cycle,
             startDate: today,
-            endDate: today,
+            endDate: todayEnd,
             isStaffCreated: true,
             createdBy: {
               connect: { id: userId },
@@ -85,7 +87,7 @@ export class ResponsibilitiesService {
     // Manager/Admin setting date range
     if (userRole === 'MANAGER' || userRole === 'ADMIN') {
       const start = startDate ? this.getDateOnly(new Date(startDate)) : undefined;
-      const end = endDate ? this.getDateOnly(new Date(endDate)) : undefined;
+      const end = endDate ? this.getEndOfDay(new Date(endDate)) : undefined;
 
       if (start && end && end < start) {
         throw new BadRequestException('End date cannot be before start date');
@@ -443,5 +445,14 @@ export class ResponsibilitiesService {
     const d = new Date(date);
     // Use UTC to avoid timezone conversion issues
     return new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0));
+  }
+
+  /**
+   * Helper: Get end of day (23:59:59.999) - UTC based to avoid timezone issues
+   */
+  private getEndOfDay(date: Date): Date {
+    const d = new Date(date);
+    // Use UTC to avoid timezone conversion issues
+    return new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999));
   }
 }

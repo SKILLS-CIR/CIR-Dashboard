@@ -4,7 +4,7 @@ import { DatabaseService } from 'src/database/database.service';
 
 @Injectable()
 export class AssignmentService {
-  constructor(private readonly prisma: DatabaseService) {}
+  constructor(private readonly prisma: DatabaseService) { }
 
   create(createAssignmentDto: Prisma.ResponsibilityAssignmentCreateInput) {
     return this.prisma.responsibilityAssignment.create({
@@ -85,7 +85,7 @@ export class AssignmentService {
               role: true,
             },
           },
-          workSubmission: true,
+          workSubmissions: true,
         },
       });
     }
@@ -128,7 +128,7 @@ export class AssignmentService {
               role: true,
             },
           },
-          workSubmission: true,
+          workSubmissions: true,
         },
       });
     }
@@ -160,7 +160,7 @@ export class AssignmentService {
               role: true,
             },
           },
-          workSubmission: true,
+          workSubmissions: true,
         },
       });
     }

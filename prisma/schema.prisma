@@ -146,7 +146,7 @@ model ResponsibilityAssignment {
   staffId          Int
   staff            Employee           @relation("StaffAssignments", fields: [staffId], references: [id], onDelete: Cascade)
   
-  workSubmission   WorkSubmission?
+  workSubmissions  WorkSubmission[]
 
   @@unique([responsibilityId, staffId])
   @@index([staffId])
@@ -169,7 +169,7 @@ model WorkSubmission {
   updatedAt       DateTime  @updatedAt
 
   // Relations
-  assignmentId    Int      @unique
+  assignmentId    Int
   assignment      ResponsibilityAssignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
   
   staffId         Int
@@ -179,6 +179,9 @@ model WorkSubmission {
   verifiedBy      Employee?    @relation("ManagerVerifications", fields: [verifiedById], references: [id], onDelete: SetNull)
 
   comments        Comment[]
+
+  // Allow multiple submissions per assignment, but only one per day
+  @@unique([assignmentId, workDate])
 
   // Note: assignmentId is @unique, so only one submission per assignment.
   // workDate + staffId index helps with daily queries.

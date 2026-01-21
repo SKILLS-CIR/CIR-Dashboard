@@ -4,7 +4,7 @@ import { DatabaseService } from 'src/database/database.service';
 
 @Injectable()
 export class ResponsibilitiesService {
-  constructor(private readonly databaseService: DatabaseService) {}
+  constructor(private readonly databaseService: DatabaseService) { }
 
   async create(createResponsibilityDto: Prisma.ResponsibilityCreateInput) {
     return this.databaseService.responsibility.create({
@@ -16,6 +16,7 @@ export class ResponsibilitiesService {
    * Create a responsibility with date validation
    * Managers can set startDate and endDate
    * Staff can create same-day responsibilities for themselves (if enabled)
+   * When staff creates, it auto-assigns to them for today only
    */
   async createWithDateValidation(
     createResponsibilityDto: Prisma.ResponsibilityCreateInput,
@@ -32,15 +33,40 @@ export class ResponsibilitiesService {
       const today = this.getDateOnly(new Date());
       const start = startDate ? this.getDateOnly(new Date(startDate)) : today;
       const end = endDate ? this.getDateOnly(new Date(endDate)) : today;
-      
+
       if (start.getTime() !== today.getTime() || end.getTime() !== today.getTime()) {
         throw new BadRequestException('Staff can only create responsibilities for the current day');
       }
-      
+
       // Auto-set dates to today for staff-created responsibilities
       (createResponsibilityDto as any).startDate = today;
       (createResponsibilityDto as any).endDate = today;
       (createResponsibilityDto as any).isStaffCreated = true;  // Always true for staff
+
+      // Use transaction to create responsibility and auto-assign to this staff member
+      const result = await this.databaseService.$transaction(async (tx) => {
+        // Create the responsibility
+        const responsibility = await tx.responsibility.create({
+          data: createResponsibilityDto,
+        });
+
+        // Auto-create assignment for this staff member for today
+        const assignment = await tx.responsibilityAssignment.create({
+          data: {
+            responsibilityId: responsibility.id,
+            staffId: userId,
+            status: 'PENDING',
+            dueDate: today,
+          },
+        });
+
+        return {
+          ...responsibility,
+          assignments: [assignment],
+        };
+      });
+
+      return result;
     }
 
     // Manager/Admin setting date range
@@ -48,11 +74,11 @@ export class ResponsibilitiesService {
       if (startDate && endDate) {
         const start = this.getDateOnly(new Date(startDate));
         const end = this.getDateOnly(new Date(endDate));
-        
+
         if (end < start) {
           throw new BadRequestException('End date cannot be before start date');
         }
-        
+
         (createResponsibilityDto as any).startDate = start;
         (createResponsibilityDto as any).endDate = end;
       }
@@ -99,7 +125,7 @@ export class ResponsibilitiesService {
                 role: true,
               },
             },
-            workSubmission: true,
+            workSubmissions: true,
           },
         },
       },
@@ -144,7 +170,7 @@ export class ResponsibilitiesService {
                 role: true,
               },
             },
-            workSubmission: true,
+            workSubmissions: true,
           },
         },
         subResponsibilities: true,
@@ -186,7 +212,7 @@ export class ResponsibilitiesService {
             jobTitle: true,
           },
         },
-        workSubmission: true,
+        workSubmissions: true,
       },
     });
   }
@@ -217,7 +243,7 @@ export class ResponsibilitiesService {
         },
       };
       where.isActive = true;
-      
+
       // Only show responsibilities within date range for staff
       where.OR = [
         // No dates set (legacy responsibilities)
@@ -238,7 +264,7 @@ export class ResponsibilitiesService {
         return [];
       }
       where.subDepartmentId = userSubDepartmentId;
-      
+
       // Optionally exclude expired unless explicitly requested
       if (!includeExpired) {
         where.OR = [
@@ -331,7 +357,7 @@ export class ResponsibilitiesService {
                 role: true,
               },
             },
-            workSubmission: true,
+            workSubmissions: true,
           },
         },
       },
@@ -372,11 +398,11 @@ export class ResponsibilitiesService {
 
     // Check date range for staff
     const targetDate = this.getDateOnly(date);
-    
+
     if (responsibility.startDate && targetDate < this.getDateOnly(responsibility.startDate)) {
       return false;
     }
-    
+
     if (responsibility.endDate && targetDate > this.getDateOnly(responsibility.endDate)) {
       return false;
     }

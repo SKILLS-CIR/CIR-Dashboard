@@ -305,25 +305,43 @@ export class WorkSubmissionService {
     }
     // ADMIN can verify any submission
 
-    // 5. Update submission and assignment status
+    // 5. Update submission status (per-submission, not assignment-level)
     const newStatus = approved ? 'VERIFIED' : 'REJECTED';
 
-    return this.databaseService.$transaction([
-      this.databaseService.workSubmission.update({
-        where: { id: submissionId },
-        data: {
-          verifiedAt: new Date(),
-          verifiedById: verifierId,
-          managerComment,
+    // Update only the WorkSubmission - NOT the assignment status
+    // This allows each day's submission to have its own status
+    return this.databaseService.workSubmission.update({
+      where: { id: submissionId },
+      data: {
+        status: newStatus,
+        verifiedAt: new Date(),
+        verifiedById: verifierId,
+        managerComment,
+        rejectionReason: approved ? null : managerComment,
+      },
+      include: {
+        assignment: {
+          include: {
+            responsibility: true,
+          },
         },
-      }),
-      this.databaseService.responsibilityAssignment.update({
-        where: { id: submission.assignmentId },
-        data: {
-          status: newStatus,
+        staff: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            role: true,
+          },
         },
-      }),
-    ]);
+        verifiedBy: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+      },
+    });
   }
 
   /**
@@ -539,16 +557,13 @@ export class WorkSubmissionService {
 
     for (const submission of submissions) {
       const hours = submission.hoursWorked || 0;
-      if (submission.verifiedAt) {
-        // Check assignment status for approved vs rejected
-        const assignment = submission.assignment;
-        if (assignment?.status === 'VERIFIED') {
-          verifiedHours += hours;
-        }
-        // Rejected submissions don't count towards any total
-      } else {
+      // Use submission.status (per-day status) instead of assignment.status
+      if (submission.status === 'VERIFIED') {
+        verifiedHours += hours;
+      } else if (submission.status === 'SUBMITTED') {
         pendingHours += hours;
       }
+      // Rejected submissions don't count towards any total
     }
 
     return {
@@ -620,7 +635,8 @@ export class WorkSubmissionService {
       calendarData[dateKey].submissions.push(submission);
       calendarData[dateKey].totalHours += hours;
       
-      if (submission.verifiedAt && submission.assignment?.status === 'VERIFIED') {
+      // Use submission.status (per-day status) instead of assignment.status
+      if (submission.status === 'VERIFIED') {
         calendarData[dateKey].verifiedHours += hours;
       }
     }

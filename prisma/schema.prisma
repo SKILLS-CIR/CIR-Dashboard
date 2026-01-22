@@ -159,11 +159,13 @@ model WorkSubmission {
   id              Int       @id @default(autoincrement())
   workDate        DateTime  @default(now()) @db.Date  // The date this work was performed (DATE only, no time)
   hoursWorked     Float
+  status          SubmissionStatus @default(SUBMITTED)  // Per-submission status (independent for each day)
   workProofType   WorkProofType?  // Type of proof submitted
   workProofUrl    String?         // File path/URL to uploaded proof (PDF/Image)
   workProofText   String?   @db.Text // Direct text proof
   staffComment    String?   @db.Text
   managerComment  String?   @db.Text
+  rejectionReason String?   @db.Text  // Reason for rejection if status is REJECTED
   submittedAt     DateTime  @default(now())
   verifiedAt      DateTime?
   updatedAt       DateTime  @updatedAt
@@ -264,6 +266,12 @@ enum NotificationType {
   RESPONSIBILITY_DELETED
   PROMOTED_TO_MANAGER
   ACCOUNT_CREATED
+}
+
+enum SubmissionStatus {
+  SUBMITTED   // Submitted by staff, awaiting manager verification
+  VERIFIED    // Verified/approved by manager
+  REJECTED    // Rejected by manager
 }
 
 enum WorkProofType {

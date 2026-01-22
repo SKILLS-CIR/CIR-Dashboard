@@ -6,6 +6,14 @@ import { DatabaseService } from 'src/database/database.service';
 export class AssignmentService {
   constructor(private readonly prisma: DatabaseService) { }
 
+  /**
+   * Helper: Get date only (strip time component) in UTC
+   */
+  private getDateOnly(date: Date): Date {
+    const d = new Date(date);
+    return new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0));
+  }
+
   create(createAssignmentDto: Prisma.ResponsibilityAssignmentCreateInput) {
     return this.prisma.responsibilityAssignment.create({
       data: createAssignmentDto,
@@ -50,6 +58,7 @@ export class AssignmentService {
 
   /**
    * Scoped findAll - restricts based on user role and sub-department
+   * For STAFF: Also filters out responsibilities that are outside their valid date range
    */
   async findAllScoped(
     userId: number,
@@ -59,9 +68,28 @@ export class AssignmentService {
     responsibilityId?: number,
     status?: string,
   ) {
-    // STAFF: Only their own assignments
+    const today = this.getDateOnly(new Date());
+
+    // STAFF: Only their own assignments for ACTIVE responsibilities (within date range)
     if (userRole === 'STAFF') {
-      const where: any = { staffId: userId };
+      const where: any = { 
+        staffId: userId,
+        // Filter: Only responsibilities that are active for TODAY
+        responsibility: {
+          isActive: true,
+          OR: [
+            // No dates set (legacy responsibilities - always visible)
+            { startDate: null, endDate: null },
+            // Within date range
+            {
+              AND: [
+                { OR: [{ startDate: null }, { startDate: { lte: today } }] },
+                { OR: [{ endDate: null }, { endDate: { gte: today } }] },
+              ],
+            },
+          ],
+        },
+      };
       if (responsibilityId) where.responsibilityId = responsibilityId;
       if (status) where.status = status;
 
@@ -75,6 +103,9 @@ export class AssignmentService {
               description: true,
               cycle: true,
               subDepartmentId: true,
+              startDate: true,
+              endDate: true,
+              isStaffCreated: true,
             },
           },
           staff: {

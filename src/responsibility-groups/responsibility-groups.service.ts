@@ -54,14 +54,17 @@ export class ResponsibilityGroupsService {
 
       // 2. Add existing responsibilities if provided
       if (createDto.responsibilityIds && createDto.responsibilityIds.length > 0) {
+        // Deduplicate responsibility IDs
+        const uniqueIds = [...new Set(createDto.responsibilityIds)];
+
         // Verify all responsibilities exist and belong to the same sub-department
         const responsibilities = await tx.responsibility.findMany({
           where: {
-            id: { in: createDto.responsibilityIds },
+            id: { in: uniqueIds },
           },
         });
 
-        if (responsibilities.length !== createDto.responsibilityIds.length) {
+        if (responsibilities.length !== uniqueIds.length) {
           throw new NotFoundException('Some responsibilities were not found');
         }
 
@@ -76,7 +79,7 @@ export class ResponsibilityGroupsService {
 
         // Create group items in batch
         await tx.responsibilityGroupItem.createMany({
-          data: createDto.responsibilityIds.map((respId, index) => ({
+          data: uniqueIds.map((respId, index) => ({
             groupId: group.id,
             responsibilityId: respId,
             displayOrder: index,
@@ -86,7 +89,7 @@ export class ResponsibilityGroupsService {
 
       // 3. Create new responsibilities inline if provided
       if (createDto.newResponsibilities && createDto.newResponsibilities.length > 0) {
-        const startOrder = createDto.responsibilityIds?.length || 0;
+        const startOrder = createDto.responsibilityIds ? [...new Set(createDto.responsibilityIds)].length : 0;
         
         for (let i = 0; i < createDto.newResponsibilities.length; i++) {
           const newResp = createDto.newResponsibilities[i];
@@ -265,17 +268,54 @@ export class ResponsibilityGroupsService {
       },
     });
 
-    if (!group) {
-      throw new NotFoundException(`Responsibility group with ID ${id} not found`);
-    }
-
-    // Authorization check
+    // Authorization check - STAFF cannot view groups at all
     if (userRole === 'STAFF') {
       throw new ForbiddenException('Staff cannot view responsibility groups');
     }
 
-    if (userRole === 'MANAGER' && group.subDepartmentId !== userSubDepartmentId) {
-      throw new ForbiddenException('Cannot access groups from other sub-departments');
+    // For MANAGERs, verify the group belongs to their sub-department
+    if (userRole === 'MANAGER') {
+      if (!userSubDepartmentId) {
+        throw new ForbiddenException('Manager must have a sub-department assigned');
+      }
+      
+      // Re-fetch with subDepartmentId filter to ensure manager can only see their groups
+      const managerGroup = await this.databaseService.responsibilityGroup.findFirst({
+        where: {
+          id,
+          subDepartmentId: userSubDepartmentId,
+        },
+        include: {
+          items: {
+            include: {
+              responsibility: true,
+            },
+            orderBy: { displayOrder: 'asc' },
+          },
+          groupAssignments: {
+            include: {
+              staff: {
+                select: {
+                  id: true,
+                  name: true,
+                  email: true,
+                },
+              },
+            },
+          },
+        },
+      });
+
+      if (!managerGroup) {
+        throw new NotFoundException(`Responsibility group with ID ${id} not found`);
+      }
+
+      return managerGroup;
+    }
+
+    // ADMIN can see all groups
+    if (!group) {
+      throw new NotFoundException(`Responsibility group with ID ${id} not found`);
     }
 
     return group;
@@ -349,14 +389,17 @@ export class ResponsibilityGroupsService {
 
       // 1. Add existing responsibilities
       if (addDto.responsibilityIds && addDto.responsibilityIds.length > 0) {
+        // Deduplicate responsibility IDs
+        const uniqueIds = [...new Set(addDto.responsibilityIds)];
+
         // Verify responsibilities exist and belong to same sub-department
         const responsibilities = await tx.responsibility.findMany({
           where: {
-            id: { in: addDto.responsibilityIds },
+            id: { in: uniqueIds },
           },
         });
 
-        if (responsibilities.length !== addDto.responsibilityIds.length) {
+        if (responsibilities.length !== uniqueIds.length) {
           throw new NotFoundException('Some responsibilities were not found');
         }
 
@@ -372,13 +415,13 @@ export class ResponsibilityGroupsService {
         const existingItems = await tx.responsibilityGroupItem.findMany({
           where: {
             groupId,
-            responsibilityId: { in: addDto.responsibilityIds },
+            responsibilityId: { in: uniqueIds },
           },
         });
         const existingRespIds = new Set(existingItems.map(item => item.responsibilityId));
 
         // Filter out already existing ones
-        const newRespIds = addDto.responsibilityIds.filter(id => !existingRespIds.has(id));
+        const newRespIds = uniqueIds.filter(id => !existingRespIds.has(id));
 
         if (newRespIds.length > 0) {
           // Batch create items
@@ -491,10 +534,10 @@ export class ResponsibilityGroupsService {
     userRole: string,
     userSubDepartmentId: number | null,
   ) {
-    // Verify access to the group
-    const group = await this.findOne(groupId, userId, userRole, userSubDepartmentId);
+    // Verify access to the group - findOne returns group with items included
+    const group = await this.findOne(groupId, userId, userRole, userSubDepartmentId) as any;
 
-    if (group.items.length === 0) {
+    if (!group.items || group.items.length === 0) {
       throw new BadRequestException('Cannot assign an empty group');
     }
 

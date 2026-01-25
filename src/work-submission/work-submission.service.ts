@@ -392,7 +392,7 @@ export class WorkSubmissionService {
       where: { id: submissionId },
       data: {
         hoursWorked: updateData.hoursWorked ?? submission.hoursWorked,
-        staffComment: updateData.staffComment,
+        staffComment: updateData.staffComment ?? submission.staffComment,
         workProofType: updateData.workProofType ?? submission.workProofType,
         workProofUrl: updateData.workProofUrl ?? submission.workProofUrl,
         workProofText: updateData.workProofText ?? submission.workProofText,

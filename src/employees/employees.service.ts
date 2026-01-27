@@ -87,6 +87,35 @@ export class EmployeesService {
   }
 
   /**
+   * Admin password reset - resets a user's password without requiring old password
+   */
+  async resetPassword(userId: number, newPassword: string) {
+    // 1. Find the user
+    const user = await this.databaseService.employee.findUnique({
+      where: { id: userId }
+    });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    // 2. Validate new password
+    if (!newPassword || newPassword.length < 6) {
+      throw new UnauthorizedException('New password must be at least 6 characters');
+    }
+
+    // 3. Hash and save new password
+    const hashedPassword = await bcrypt.hash(newPassword, roundsOfHashing);
+    
+    await this.databaseService.employee.update({
+      where: { id: userId },
+      data: { password: hashedPassword }
+    });
+
+    return { message: 'Password reset successfully' };
+  }
+
+  /**
    * Scoped findAll - restricts based on user role
    */
   async findAllScoped(

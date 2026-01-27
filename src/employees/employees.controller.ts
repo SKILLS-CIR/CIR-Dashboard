@@ -73,4 +73,13 @@ export class EmployeesController {
       changePasswordDto.newPassword
     );
   }
+
+  @Post(':id/reset-password')
+  @Roles('ADMIN')
+  async resetPassword(
+    @Param('id') id: string,
+    @Body() body: { newPassword: string }
+  ) {
+    return this.employeesService.resetPassword(+id, body.newPassword);
+  }
 }

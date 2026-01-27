@@ -478,6 +478,49 @@ export class ResponsibilityGroupsService {
         },
       });
 
+      // IMPORTANT: Also create assignments for staff already assigned to this group
+      // This ensures that when responsibilities are added to a group, 
+      // staff members who are already assigned to the group get the new assignments
+      if (addedResponsibilityIds.length > 0) {
+        // Get all staff assigned to this group
+        const groupAssignments = await tx.responsibilityGroupAssignment.findMany({
+          where: { groupId },
+          select: { staffId: true },
+        });
+
+        if (groupAssignments.length > 0) {
+          const staffIds = groupAssignments.map(ga => ga.staffId);
+          
+          // For each new responsibility, create assignments for all staff in the group
+          for (const responsibilityId of addedResponsibilityIds) {
+            // Check existing assignments to avoid duplicates
+            const existingAssignments = await tx.responsibilityAssignment.findMany({
+              where: {
+                responsibilityId,
+                staffId: { in: staffIds },
+              },
+              select: { staffId: true },
+            });
+            const existingStaffIds = new Set(existingAssignments.map(a => a.staffId));
+            
+            // Create assignments only for staff who don't already have one
+            const newStaffIds = staffIds.filter(id => !existingStaffIds.has(id));
+            
+            if (newStaffIds.length > 0) {
+              await tx.responsibilityAssignment.createMany({
+                data: newStaffIds.map(staffId => ({
+                  responsibilityId,
+                  staffId,
+                  status: 'PENDING',
+                  assignedAt: new Date(),
+                })),
+                skipDuplicates: true,
+              });
+            }
+          }
+        }
+      }
+
       return {
         groupId,
         addedItems,
@@ -491,6 +534,7 @@ export class ResponsibilityGroupsService {
   /**
    * Remove a responsibility from a group
    * Note: This only removes the association, not the responsibility itself
+   * Also removes assignments for staff who were assigned through this group
    */
   async removeResponsibilityFromGroup(
     groupId: number,
@@ -517,8 +561,30 @@ export class ResponsibilityGroupsService {
       );
     }
 
-    return this.databaseService.responsibilityGroupItem.delete({
-      where: { id: item.id },
+    // Use transaction to remove both the group item and related assignments
+    return this.databaseService.$transaction(async (tx) => {
+      // Get all staff members assigned to this group
+      const groupAssignments = await tx.responsibilityGroupAssignment.findMany({
+        where: { groupId },
+        select: { staffId: true },
+      });
+
+      // Remove assignments for the removed responsibility for staff in this group
+      if (groupAssignments.length > 0) {
+        const staffIds = groupAssignments.map(ga => ga.staffId);
+        
+        await tx.responsibilityAssignment.deleteMany({
+          where: {
+            responsibilityId,
+            staffId: { in: staffIds },
+          },
+        });
+      }
+
+      // Delete the group item
+      return tx.responsibilityGroupItem.delete({
+        where: { id: item.id },
+      });
     });
   }
 

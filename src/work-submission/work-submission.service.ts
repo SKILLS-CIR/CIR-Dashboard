@@ -30,7 +30,68 @@ export class WorkSubmissionService {
     const d2 = this.getDateOnly(date2);
     return d1.getTime() === d2.getTime();
   }
+  private validateWorkProofInput(
+    workProofType?: any,
+    workProofUrl?: any,
+    workProofText?: any,
+  ) {
+    const urlProvided =
+      typeof workProofUrl === 'string' && workProofUrl.trim().length > 0;
+    const textProvided =
+      typeof workProofText === 'string' && workProofText.trim().length > 0;
+    if (!workProofType && (urlProvided || textProvided)) {
+      throw new BadRequestException(
+        'workProofType is required when providing work proof',
+      );
+    }
 
+    if (!workProofType) return;
+
+    const type = String(workProofType).toUpperCase();
+    const url = typeof workProofUrl === 'string' ? workProofUrl.trim() : '';
+    const text = typeof workProofText === 'string' ? workProofText.trim() : '';
+
+    if (type === 'TEXT') {
+      if (!text) {
+        throw new BadRequestException(
+          'workProofText is required when workProofType is TEXT',
+        );
+      }
+      if (url) {
+        throw new BadRequestException(
+          'workProofUrl must NOT be provided when workProofType is TEXT',
+        );
+      }
+      return;
+    }
+
+    if (type === 'PDF' || type === 'IMAGE') {
+      if (!url) {
+        throw new BadRequestException(
+          `workProofUrl is required when workProofType is ${type}`,
+        );
+      }
+      if (text) {
+        throw new BadRequestException(
+          `workProofText must NOT be provided when workProofType is ${type}`,
+        );
+      }
+      try {
+        const parsed = new URL(url);
+        if (!['http:', 'https:'].includes(parsed.protocol)) {
+          throw new Error();
+        }
+      } catch {
+        throw new BadRequestException('Invalid workProofUrl');
+      }
+
+      return;
+    }
+
+    throw new BadRequestException(
+      'Invalid workProofType. Allowed values: PDF, IMAGE, TEXT',
+    );
+  }
   async create(createWorkSubmissionDto: Prisma.WorkSubmissionCreateInput) {
     try {
       return await this.databaseService.workSubmission.create({
@@ -463,7 +524,11 @@ export class WorkSubmissionService {
         throw new ForbiddenException('Staff can only update their own submissions');
       }
     }
-
+    this.validateWorkProofInput(
+      (updateDto as any).workProofType,
+      (updateDto as any).workProofUrl,
+      (updateDto as any).workProofText,
+    );
     return this.update(id, updateDto);
   }
 
@@ -541,7 +606,11 @@ export class WorkSubmissionService {
         throw new BadRequestException('This responsibility has expired and is no longer active');
       }
     }
-
+    this.validateWorkProofInput(
+      (createWorkSubmissionDto as any).workProofType,
+      (createWorkSubmissionDto as any).workProofUrl,
+      (createWorkSubmissionDto as any).workProofText,
+    );
     // 7. Check if submission already exists for this assignment on this date
     const existingSubmission = await this.databaseService.workSubmission.findFirst({
       where: {

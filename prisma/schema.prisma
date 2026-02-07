@@ -18,6 +18,8 @@ model Employee {
   password      String   // Hashed password for login
   role          Role     @default(STAFF)
   jobTitle      String?
+  avatarUrl     String?  // URL to profile avatar image
+  gender        Gender   @default(MALE)  // Gender for avatar selection
   isActive      Boolean  @default(true)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
@@ -42,6 +44,11 @@ model Employee {
   createdById     Int?
   createdBy       Employee?    @relation("EmployeeCreator", fields: [createdById], references: [id], onDelete: SetNull)
   createdEmployees    Employee[]   @relation("EmployeeCreator")
+
+  // Responsibility Group relations
+  createdGroups           ResponsibilityGroup[] @relation("GroupCreator")
+  groupAssignments        ResponsibilityGroupAssignment[] @relation("StaffGroupAssignments")
+  assignedGroupsToOthers  ResponsibilityGroupAssignment[] @relation("GroupAssigner")
 
   @@index([email])
   @@index([role])
@@ -85,6 +92,7 @@ model SubDepartment {
   
   staff         Employee[]     @relation("SubDepartmentEmployees")
   responsibilities Responsibility[]
+  responsibilityGroups ResponsibilityGroup[]
 
   @@unique([departmentId, name])
   @@index([departmentId])
@@ -122,6 +130,9 @@ model Responsibility {
   subResponsibilities Responsibility[] @relation("SubResponsibilities")
   
   assignments      ResponsibilityAssignment[]
+  
+  // Groups this responsibility belongs to
+  groupItems       ResponsibilityGroupItem[]
 
   @@index([subDepartmentId])
   @@index([createdById])
@@ -236,6 +247,11 @@ enum Role {
   STAFF
 }
 
+enum Gender {
+  MALE
+  FEMALE
+}
+
 enum DepartmentType {
   TEACHING
   NON_TEACHING
@@ -278,4 +294,78 @@ enum WorkProofType {
   PDF
   IMAGE
   TEXT
+}
+
+// ============================================
+// RESPONSIBILITY GROUP FEATURE (NEW)
+// ============================================
+
+// Represents a group of responsibilities (e.g., "January Month Responsibilities")
+model ResponsibilityGroup {
+  id            Int      @id @default(autoincrement())
+  name          String
+  description   String?  @db.Text
+  cycle         String?  // Optional: Format "YYYY-MM" for monthly grouping
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  createdById      Int
+  createdBy        Employee @relation("GroupCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  
+  subDepartmentId  Int
+  subDepartment    SubDepartment @relation(fields: [subDepartmentId], references: [id], onDelete: Cascade)
+
+  // Many-to-many with Responsibility via join table
+  items            ResponsibilityGroupItem[]
+  
+  // Track group assignments to staff
+  groupAssignments ResponsibilityGroupAssignment[]
+
+  @@unique([subDepartmentId, name])
+  @@index([subDepartmentId])
+  @@index([createdById])
+  @@index([cycle])
+  @@index([isActive])
+}
+
+// Join table: Maps responsibilities to groups (many-to-many)
+model ResponsibilityGroupItem {
+  id              Int      @id @default(autoincrement())
+  addedAt         DateTime @default(now())
+  displayOrder    Int      @default(0)  // Optional ordering within group
+
+  // Relations
+  groupId         Int
+  group           ResponsibilityGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  
+  responsibilityId Int
+  responsibility   Responsibility @relation(fields: [responsibilityId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, responsibilityId])
+  @@index([groupId])
+  @@index([responsibilityId])
+}
+
+// Tracks when a group was assigned to a staff member (for auditing)
+// The actual assignments are individual ResponsibilityAssignment records
+model ResponsibilityGroupAssignment {
+  id              Int      @id @default(autoincrement())
+  assignedAt      DateTime @default(now())
+  
+  // Relations
+  groupId         Int
+  group           ResponsibilityGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  
+  staffId         Int
+  staff           Employee @relation("StaffGroupAssignments", fields: [staffId], references: [id], onDelete: Cascade)
+  
+  assignedById    Int
+  assignedBy      Employee @relation("GroupAssigner", fields: [assignedById], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, staffId])
+  @@index([groupId])
+  @@index([staffId])
+  @@index([assignedById])
 }

@@ -30,7 +30,68 @@ export class WorkSubmissionService {
     const d2 = this.getDateOnly(date2);
     return d1.getTime() === d2.getTime();
   }
+  private validateWorkProofInput(
+    workProofType?: any,
+    workProofUrl?: any,
+    workProofText?: any,
+  ) {
+    const urlProvided =
+      typeof workProofUrl === 'string' && workProofUrl.trim().length > 0;
+    const textProvided =
+      typeof workProofText === 'string' && workProofText.trim().length > 0;
+    if (!workProofType && (urlProvided || textProvided)) {
+      throw new BadRequestException(
+        'workProofType is required when providing work proof',
+      );
+    }
 
+    if (!workProofType) return;
+
+    const type = String(workProofType).toUpperCase();
+    const url = typeof workProofUrl === 'string' ? workProofUrl.trim() : '';
+    const text = typeof workProofText === 'string' ? workProofText.trim() : '';
+
+    if (type === 'TEXT') {
+      if (!text) {
+        throw new BadRequestException(
+          'workProofText is required when workProofType is TEXT',
+        );
+      }
+      if (url) {
+        throw new BadRequestException(
+          'workProofUrl must NOT be provided when workProofType is TEXT',
+        );
+      }
+      return;
+    }
+
+    if (type === 'PDF' || type === 'IMAGE') {
+      if (!url) {
+        throw new BadRequestException(
+          `workProofUrl is required when workProofType is ${type}`,
+        );
+      }
+      if (text) {
+        throw new BadRequestException(
+          `workProofText must NOT be provided when workProofType is ${type}`,
+        );
+      }
+      try {
+        const parsed = new URL(url);
+        if (!['http:', 'https:'].includes(parsed.protocol)) {
+          throw new Error();
+        }
+      } catch {
+        throw new BadRequestException('Invalid workProofUrl');
+      }
+
+      return;
+    }
+
+    throw new BadRequestException(
+      'Invalid workProofType. Allowed values: PDF, IMAGE, TEXT',
+    );
+  }
   async create(createWorkSubmissionDto: Prisma.WorkSubmissionCreateInput) {
     try {
       return await this.databaseService.workSubmission.create({
@@ -283,9 +344,11 @@ export class WorkSubmissionService {
     }
 
     // 2. Check if already verified
-    if (submission.verifiedAt) {
-      throw new BadRequestException('This submission has already been verified');
-    }
+
+    //add for manager to approve and reject 
+    // if (submission.verifiedAt) {
+    //   throw new BadRequestException('This submission has already been verified');
+    // }
 
     // 3. Get the sub-department this submission belongs to
     const submissionSubDepartmentId = submission.assignment?.responsibility?.subDepartmentId;
@@ -345,6 +408,90 @@ export class WorkSubmissionService {
   }
 
   /**
+   * Resubmit a rejected work submission - allows staff to update and resubmit rejected work
+   * This resets the status to SUBMITTED and clears verification fields
+   */
+  async resubmitRejected(
+    submissionId: number,
+    staffId: number,
+    updateData: {
+      hoursWorked?: number;
+      staffComment?: string;
+      workProofType?: 'PDF' | 'IMAGE' | 'TEXT';
+      workProofUrl?: string;
+      workProofText?: string;
+    },
+  ) {
+    // 1. Get the submission
+    const submission = await this.databaseService.workSubmission.findUnique({
+      where: { id: submissionId },
+      include: {
+        assignment: {
+          include: {
+            responsibility: true,
+          },
+        },
+      },
+    });
+
+    if (!submission) {
+      throw new NotFoundException(`Work submission with ID ${submissionId} not found`);
+    }
+
+    // 2. Check ownership - only the staff who created this can resubmit
+    if (submission.staffId !== staffId) {
+      throw new ForbiddenException('You can only resubmit your own work submissions');
+    }
+
+    // 3. Check if submission is rejected - only rejected submissions can be resubmitted
+    if (submission.status !== 'REJECTED') {
+      throw new BadRequestException(
+        `Only rejected submissions can be resubmitted. Current status: ${submission.status}`,
+      );
+    }
+
+    // 4. Update the submission with new data and reset to SUBMITTED status
+    return this.databaseService.workSubmission.update({
+      where: { id: submissionId },
+      data: {
+        hoursWorked: updateData.hoursWorked ?? submission.hoursWorked,
+        staffComment: updateData.staffComment ?? submission.staffComment,
+        workProofType: updateData.workProofType ?? submission.workProofType,
+        workProofUrl: updateData.workProofUrl ?? submission.workProofUrl,
+        workProofText: updateData.workProofText ?? submission.workProofText,
+        status: 'SUBMITTED',
+        // Clear verification fields so it can be reviewed again
+        verifiedAt: null,
+        verifiedById: null,
+        // Keep the rejection reason for history, but add that it was resubmitted
+        // managerComment is preserved so staff can see original feedback
+      },
+      include: {
+        assignment: {
+          include: {
+            responsibility: true,
+          },
+        },
+        staff: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            role: true,
+          },
+        },
+        verifiedBy: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+      },
+    });
+  }
+
+  /**
    * Protected update - prevents verification fields from being set directly
    */
   async updateProtected(
@@ -377,7 +524,11 @@ export class WorkSubmissionService {
         throw new ForbiddenException('Staff can only update their own submissions');
       }
     }
-
+    this.validateWorkProofInput(
+      (updateDto as any).workProofType,
+      (updateDto as any).workProofUrl,
+      (updateDto as any).workProofText,
+    );
     return this.update(id, updateDto);
   }
 
@@ -455,7 +606,11 @@ export class WorkSubmissionService {
         throw new BadRequestException('This responsibility has expired and is no longer active');
       }
     }
-
+    this.validateWorkProofInput(
+      (createWorkSubmissionDto as any).workProofType,
+      (createWorkSubmissionDto as any).workProofUrl,
+      (createWorkSubmissionDto as any).workProofText,
+    );
     // 7. Check if submission already exists for this assignment on this date
     const existingSubmission = await this.databaseService.workSubmission.findFirst({
       where: {

@@ -170,6 +170,30 @@ export class WorkSubmissionController {
   }
 
   /**
+   * Resubmit a rejected work submission
+   * Staff can update their rejected submission with corrected details
+   */
+  @Post(':id/resubmit')
+  @Roles('STAFF', 'ADMIN')
+  async resubmit(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() resubmitDto: {
+      hoursWorked?: number;
+      staffComment?: string;
+      workProofType?: 'PDF' | 'IMAGE' | 'TEXT';
+      workProofUrl?: string;
+      workProofText?: string;
+    },
+    @Request() req,
+  ) {
+    return this.workSubmissionService.resubmitRejected(
+      id,
+      req.user.id,
+      resubmitDto,
+    );
+  }
+
+  /**
    * NEW: Dedicated verification endpoint
    * Only ADMIN or MANAGER of same department can access
    */

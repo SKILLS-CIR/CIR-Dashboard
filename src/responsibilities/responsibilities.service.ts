@@ -27,13 +27,26 @@ export class ResponsibilitiesService {
     endDate?: Date,
     isStaffCreated?: boolean,
   ) {
-    // Validate that user has a subDepartmentId
-    if (!userSubDepartmentId) {
-      throw new BadRequestException('User must be assigned to a sub-department to create responsibilities');
+    // Get subDepartmentId from payload if provided (for ADMIN users who can create for any sub-department)
+    const payloadSubDepartmentId = (createResponsibilityDto as any).subDepartment?.connect?.id;
+    
+    // For ADMIN: use payload subDepartmentId, for others: use their assigned subDepartmentId
+    const targetSubDepartmentId = userRole === 'ADMIN' && payloadSubDepartmentId 
+      ? payloadSubDepartmentId 
+      : userSubDepartmentId;
+
+    // Validate that we have a subDepartmentId
+    if (!targetSubDepartmentId) {
+      throw new BadRequestException('Sub-department is required to create responsibilities');
     }
 
     // Staff creating their own responsibility
     if (userRole === 'STAFF') {
+      // Staff must have a sub-department
+      if (!userSubDepartmentId) {
+        throw new BadRequestException('Staff must be assigned to a sub-department to create responsibilities');
+      }
+      
       // Staff can ONLY create for themselves - automatically set isStaffCreated
       const today = this.getDateOnly(new Date());
       const start = startDate ? this.getDateOnly(new Date(startDate)) : today;
@@ -105,7 +118,7 @@ export class ResponsibilitiesService {
             connect: { id: userId },
           },
           subDepartment: {
-            connect: { id: userSubDepartmentId },
+            connect: { id: targetSubDepartmentId },
           },
         },
       });

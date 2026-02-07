@@ -72,7 +72,7 @@ export class AssignmentService {
 
     // STAFF: Only their own assignments for ACTIVE responsibilities (within date range)
     if (userRole === 'STAFF') {
-      const where: any = { 
+      const where: any = {
         staffId: userId,
         // Filter: Only responsibilities that are active for TODAY
         responsibility: {
@@ -114,6 +114,15 @@ export class AssignmentService {
               name: true,
               email: true,
               role: true,
+              avatarUrl: true,
+              gender: true,
+              subDepartmentId: true,
+              subDepartment: {
+                select: {
+                  id: true,
+                  name: true,
+                },
+              },
             },
           },
           workSubmissions: true,
@@ -157,6 +166,15 @@ export class AssignmentService {
               name: true,
               email: true,
               role: true,
+              avatarUrl: true,
+              gender: true,
+              subDepartmentId: true,
+              subDepartment: {
+                select: {
+                  id: true,
+                  name: true,
+                },
+              },
             },
           },
           workSubmissions: true,
@@ -189,6 +207,15 @@ export class AssignmentService {
               name: true,
               email: true,
               role: true,
+              avatarUrl: true,
+              gender: true,
+              subDepartmentId: true,
+              subDepartment: {
+                select: {
+                  id: true,
+                  name: true,
+                },
+              },
             },
           },
           workSubmissions: true,

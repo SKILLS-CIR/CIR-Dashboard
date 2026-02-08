@@ -72,6 +72,6 @@ jobs:
 
             echo "Deploying image: $IMAGE"
 
-            docker compose pull
-            docker compose up -d
+            docker compose -f backend.yml pull
+            docker compose -f backend.yml up -d
             docker image prune -f

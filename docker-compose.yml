@@ -13,7 +13,7 @@ services:
       - pgdata:/var/lib/postgresql/data
   
   api:
-    image: ${IMAGE}
+    image: ${BACKEND_IMAGE}
     container_name: CIR-api
     env_file:
       - .env

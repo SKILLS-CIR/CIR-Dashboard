@@ -16,23 +16,50 @@ import { LoggerModule } from './logger/logger.module';
 import { AuthModule } from './auth/auth.module';
 import { ResponsibilityGroupsModule } from './responsibility-groups/responsibility-groups.module';
 import { ProfileModule } from './profile/profile.module';
+import { ClassroomBookingModule } from './classroom-booking/classroom-booking.module';
+import { ClassroomModule } from './classroom/classroom.module';
 
 @Module({
-  imports: [UsersModule, DatabaseModule, EmployeesModule, DepartmentsModule, SubDepartmentsModule, ResponsibilitiesModule, AssignmentModule, WorkSubmissionModule, CommentsModule, ResponsibilityGroupsModule, ProfileModule, ThrottlerModule.forRoot([{
-    name: 'short',
-    ttl: 1000,
-    limit: 3,
-  },
-  //rate limiters are added 
-  {
-    name: 'long',
-    ttl: 60000,
-    limit: 100,
-  }]), LoggerModule, AuthModule],
+  imports: [
+    UsersModule,
+    DatabaseModule,
+    EmployeesModule,
+    DepartmentsModule,
+    SubDepartmentsModule,
+    ResponsibilitiesModule,
+    AssignmentModule,
+    WorkSubmissionModule,
+    CommentsModule,
+    ResponsibilityGroupsModule,
+    ProfileModule,
+    AuthModule,
+    ClassroomModule,
+    ClassroomBookingModule,
+    ThrottlerModule.forRoot([
+      {
+        name: 'short',
+        ttl: 1000,
+        limit: 3,
+      },
+      //rate limiters are added
+      {
+        name: 'long',
+        ttl: 60000,
+        limit: 100,
+      },
+    ]),
+    LoggerModule,
+    AuthModule,
+    ClassroomBookingModule,
+    ClassroomModule,
+  ],
   controllers: [AppController],
-  providers: [AppService, {
-    provide: APP_GUARD,
-    useClass: ThrottlerGuard,
-  }],
+  providers: [
+    AppService,
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
+  ],
 })
-export class AppModule { }
+export class AppModule {}

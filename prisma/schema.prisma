@@ -51,6 +51,12 @@ model Employee {
   classroomBookings          ClassroomBooking[]              @relation("EmployeeBookings")
   cancelledClassroomBookings ClassroomBooking[]              @relation("BookingCancellation")
 
+  // Sem Report relations
+  semReports                 SemReport[]                     @relation("StaffSemReports")
+  managerReviewedSemReports  SemReport[]                     @relation("ManagerSemReportReviewer")
+  adminReviewedSemReports    SemReport[]                     @relation("AdminSemReportReviewer")
+  rejectedSemReports         SemReport[]                     @relation("SemReportRejector")
+
   @@index([email])
   @@index([role])
   @@index([departmentId])
@@ -414,4 +420,89 @@ model ClassroomBooking {
   @@index([bookedById])
   @@index([isCancelled])
   @@index([parentBookingId])
+}
+
+// ============================================
+// SEM REPORT FEATURE
+// ============================================
+
+enum SemReportStatus {
+  DRAFT
+  UNDER_MANAGER_REVIEW
+  UNDER_ADMIN_REVIEW
+  APPROVED
+  REJECTED
+}
+
+enum SemReportItemType {
+  BATCH
+  RESPONSIBILITY
+}
+
+model SemReport {
+  id                Int             @id @default(autoincrement())
+  semesterStartDate DateTime        @db.Date
+  semesterEndDate   DateTime        @db.Date
+  status            SemReportStatus @default(DRAFT)
+  rejectionReason   String?         @db.Text
+  managerReviewedAt DateTime?
+  adminReviewedAt   DateTime?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  // Staff who owns the report
+  staffId Int
+  staff   Employee @relation("StaffSemReports", fields: [staffId], references: [id], onDelete: Cascade)
+
+  // Manager who reviewed
+  managerReviewedById Int?
+  managerReviewedBy   Employee? @relation("ManagerSemReportReviewer", fields: [managerReviewedById], references: [id], onDelete: SetNull)
+
+  // Admin who reviewed
+  adminReviewedById Int?
+  adminReviewedBy   Employee? @relation("AdminSemReportReviewer", fields: [adminReviewedById], references: [id], onDelete: SetNull)
+
+  // Who rejected (could be manager or admin)
+  rejectedById Int?
+  rejectedBy   Employee? @relation("SemReportRejector", fields: [rejectedById], references: [id], onDelete: SetNull)
+
+  // Report items (batches and responsibilities)
+  items SemReportItem[]
+
+  @@index([staffId])
+  @@index([status])
+  @@index([managerReviewedById])
+  @@index([adminReviewedById])
+}
+
+model SemReportItem {
+  id          Int               @id @default(autoincrement())
+  type        SemReportItemType
+  name        String            // e.g. "S5CSE", "SSR", "PLACEMENT"
+  description String?           @db.Text
+  createdAt   DateTime          @default(now())
+
+  // Parent report
+  semReportId Int
+  semReport   SemReport @relation(fields: [semReportId], references: [id], onDelete: Cascade)
+
+  // Attachments
+  attachments SemReportAttachment[]
+
+  @@index([semReportId])
+  @@index([type])
+}
+
+model SemReportAttachment {
+  id         Int      @id @default(autoincrement())
+  fileName   String   // Original file name
+  fileUrl    String   // Uploaded file path/URL
+  fileType   String?  // MIME type or extension
+  uploadedAt DateTime @default(now())
+
+  // Parent item
+  semReportItemId Int
+  semReportItem   SemReportItem @relation(fields: [semReportItemId], references: [id], onDelete: Cascade)
+
+  @@index([semReportItemId])
 }

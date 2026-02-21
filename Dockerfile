@@ -44,10 +44,10 @@ COPY --from=builder --chown=nestjs:nodejs /app/node_modules ./node_modules
 COPY --from=builder --chown=nestjs:nodejs /app/package.json ./package.json
 COPY --from=builder --chown=nestjs:nodejs /app/prisma ./prisma
 
-# Create uploads directory with correct permissions
-RUN mkdir -p /app/uploads && \
-    chown -R nestjs:nodejs /app/uploads && \
-    chmod 755 /app/uploads
+# Create uploads and logs directories with correct permissions
+RUN mkdir -p /app/uploads /app/logs && \
+    chown -R nestjs:nodejs /app/uploads /app/logs && \
+    chmod 755 /app/uploads /app/logs
 
 USER nestjs
 EXPOSE 3000

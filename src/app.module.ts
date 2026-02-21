@@ -18,6 +18,7 @@ import { ResponsibilityGroupsModule } from './responsibility-groups/responsibili
 import { ProfileModule } from './profile/profile.module';
 import { ClassroomBookingModule } from './classroom-booking/classroom-booking.module';
 import { ClassroomModule } from './classroom/classroom.module';
+import { SemreportModule } from './semreport/semreport.module';
 
 @Module({
   imports: [
@@ -52,6 +53,7 @@ import { ClassroomModule } from './classroom/classroom.module';
     AuthModule,
     ClassroomBookingModule,
     ClassroomModule,
+    SemreportModule,
   ],
   controllers: [AppController],
   providers: [

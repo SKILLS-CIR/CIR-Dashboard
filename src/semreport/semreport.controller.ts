@@ -42,6 +42,7 @@ export class SemreportController {
   @Get('manager/review')
   @Roles('MANAGER')
   getManagerReports(@Req() req) {
+    // console.log('=== REQ.USER ===', JSON.stringify(req.user));
     return this.semreportService.getReportsForManagerReview(req.user.id);
   }
 

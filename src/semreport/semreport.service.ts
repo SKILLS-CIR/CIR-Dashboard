@@ -16,6 +16,7 @@ const REPORT_INCLUDES = {
       id: true,
       name: true,
       email: true,
+      avatarUrl: true,
       departmentId: true,
       subDepartmentId: true,
       department: { select: { id: true, name: true } },
@@ -196,16 +197,11 @@ export class SemreportService {
   // MANAGER: Get reports for review (own sub-dept)
   // ─────────────────────────────────────────────
   async getReportsForManagerReview(managerId: number) {
-    const subDept = await this.db.subDepartment.findUnique({
-      where: { managerId },
-    });
-
-    if (!subDept)
-      throw new ForbiddenException('You are not managing any sub-department');
+    const subDeptId = await this.getManagerSubDepartmentId(managerId);
 
     return this.db.semReport.findMany({
       where: {
-        staff: { subDepartmentId: subDept.id },
+        staff: { subDepartmentId: subDeptId },
         status: {
           in: [
             'UNDER_MANAGER_REVIEW',
@@ -422,14 +418,34 @@ export class SemreportService {
     }
   }
 
+  /**
+   * Resolve the sub-department ID that a manager owns.
+   * First checks SubDepartment.managerId, then falls back to the
+   * manager's own subDepartmentId from their Employee record.
+   */
+  private async getManagerSubDepartmentId(managerId: number): Promise<number> {
+    // 1. Check if any SubDepartment has this employee set as manager
+    const subDept = await this.db.subDepartment.findUnique({
+      where: { managerId },
+    });
+    if (subDept) return subDept.id;
+
+    // 2. Fallback: use the manager's own subDepartmentId
+    const manager = await this.db.employee.findUnique({
+      where: { id: managerId },
+      select: { subDepartmentId: true },
+    });
+    if (manager?.subDepartmentId) return manager.subDepartmentId;
+
+    throw new ForbiddenException('You are not managing any sub-department');
+  }
+
   private async assertManagerOwnsSubDepartment(
     managerId: number,
     staffSubDeptId: number | null,
   ) {
-    const subDept = await this.db.subDepartment.findUnique({
-      where: { managerId },
-    });
-    if (!subDept || subDept.id !== staffSubDeptId) {
+    const managerSubDeptId = await this.getManagerSubDepartmentId(managerId);
+    if (managerSubDeptId !== staffSubDeptId) {
       throw new ForbiddenException(
         'You can only access reports from staff in your own sub-department',
       );

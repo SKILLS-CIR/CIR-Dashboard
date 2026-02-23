@@ -40,7 +40,7 @@ import { SemreportModule } from './semreport/semreport.module';
       {
         name: 'short',
         ttl: 1000,
-        limit: 3,
+        limit: 10,
       },
       //rate limiters are added
       {

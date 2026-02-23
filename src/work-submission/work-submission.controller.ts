@@ -17,8 +17,10 @@ import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
 import { RolesGuard } from 'src/auth/guards/roles.guard';
 import { Roles } from 'src/auth/decorators/roles.decorator';
 import { VerifySubmissionDto } from './dto/verify-submission.dto';
+import { SkipThrottle } from '@nestjs/throttler';
 
 @Controller('work-submission')
+@SkipThrottle()
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class WorkSubmissionController {
   constructor(private readonly workSubmissionService: WorkSubmissionService) {}

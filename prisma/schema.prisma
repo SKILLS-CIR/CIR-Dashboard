@@ -1,54 +1,55 @@
 // This is your Prisma schema file,
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
-
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider  = "postgresql"
-  url       = env("DIRECT_URL")
+  provider = "postgresql"
+  url      = env("DIRECT_URL")
 }
 
 model Employee {
-  id            Int      @id @default(autoincrement())
-  email         String   @unique
-  name          String
-  password      String   // Hashed password for login
-  role          Role     @default(STAFF)
-  jobTitle      String?
-  avatarUrl     String?  // URL to profile avatar image
-  gender        Gender   @default(MALE)  // Gender for avatar selection
-  isActive      Boolean  @default(true)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  name      String
+  password  String // Hashed password for login
+  role      Role     @default(STAFF)
+  jobTitle  String?
+  avatarUrl String? // URL to profile avatar image
+  gender    Gender   @default(MALE) // Gender for avatar selection
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   // Relations
-  departmentId      Int?
-  department        Department?      @relation("DepartmentEmployees", fields: [departmentId], references: [id], onDelete: SetNull)
-  
-  subDepartmentId   Int?
-  subDepartment     SubDepartment?   @relation("SubDepartmentEmployees", fields: [subDepartmentId], references: [id], onDelete: SetNull)
-  
-  managedSubDept    SubDepartment?   @relation("SubDepartmentManager")
-  
-  createdResponsibilities Responsibility[] @relation("ResponsibilityCreator")
+  departmentId Int?
+  department   Department? @relation("DepartmentEmployees", fields: [departmentId], references: [id], onDelete: SetNull)
+
+  subDepartmentId Int?
+  subDepartment   SubDepartment? @relation("SubDepartmentEmployees", fields: [subDepartmentId], references: [id], onDelete: SetNull)
+
+  managedSubDept SubDepartment? @relation("SubDepartmentManager")
+
+  createdResponsibilities Responsibility[]           @relation("ResponsibilityCreator")
   assignments             ResponsibilityAssignment[] @relation("StaffAssignments")
-  workSubmissions         WorkSubmission[] @relation("StaffSubmissions")
-  verifiedSubmissions     WorkSubmission[] @relation("ManagerVerifications")
+  workSubmissions         WorkSubmission[]           @relation("StaffSubmissions")
+  verifiedSubmissions     WorkSubmission[]           @relation("ManagerVerifications")
   notifications           Notification[]
   comments                Comment[]
-  
+
   // Track who created this Employee (for admin tracking)
-  createdById     Int?
-  createdBy       Employee?    @relation("EmployeeCreator", fields: [createdById], references: [id], onDelete: SetNull)
-  createdEmployees    Employee[]   @relation("EmployeeCreator")
+  createdById      Int?
+  createdBy        Employee?  @relation("EmployeeCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  createdEmployees Employee[] @relation("EmployeeCreator")
 
   // Responsibility Group relations
-  createdGroups           ResponsibilityGroup[] @relation("GroupCreator")
-  groupAssignments        ResponsibilityGroupAssignment[] @relation("StaffGroupAssignments")
-  assignedGroupsToOthers  ResponsibilityGroupAssignment[] @relation("GroupAssigner")
+  createdGroups              ResponsibilityGroup[]           @relation("GroupCreator")
+  groupAssignments           ResponsibilityGroupAssignment[] @relation("StaffGroupAssignments")
+  assignedGroupsToOthers     ResponsibilityGroupAssignment[] @relation("GroupAssigner")
+  classroomBookings          ClassroomBooking[]              @relation("EmployeeBookings")
+  cancelledClassroomBookings ClassroomBooking[]              @relation("BookingCancellation")
 
   @@index([email])
   @@index([role])
@@ -58,40 +59,40 @@ model Employee {
 }
 
 model Department {
-  id            Int            @id @default(autoincrement())
-  name          String         @unique
-  type          DepartmentType
-  description   String?        @db.Text
-  isActive      Boolean        @default(true)
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
+  id          Int            @id @default(autoincrement())
+  name        String         @unique
+  type        DepartmentType
+  description String?        @db.Text
+  isActive    Boolean        @default(true)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
 
   // Relations
   subDepartments SubDepartment[]
-  Employees          Employee[]          @relation("DepartmentEmployees")
+  Employees      Employee[]      @relation("DepartmentEmployees")
 
   @@index([type])
   @@index([isActive])
 }
 
 model SubDepartment {
-  id            Int               @id @default(autoincrement())
-  name          String
-  type          SubDepartmentType
-  description   String?           @db.Text
-  isActive      Boolean           @default(true)
-  createdAt     DateTime          @default(now())
-  updatedAt     DateTime          @updatedAt
-  
+  id          Int               @id @default(autoincrement())
+  name        String
+  type        SubDepartmentType
+  description String?           @db.Text
+  isActive    Boolean           @default(true)
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
   // Relations
-  departmentId  Int
-  department    Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
-  
-  managerId     Int?       @unique
-  manager       Employee?      @relation("SubDepartmentManager", fields: [managerId], references: [id], onDelete: SetNull)
-  
-  staff         Employee[]     @relation("SubDepartmentEmployees")
-  responsibilities Responsibility[]
+  departmentId Int
+  department   Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+
+  managerId Int?      @unique
+  manager   Employee? @relation("SubDepartmentManager", fields: [managerId], references: [id], onDelete: SetNull)
+
+  staff                Employee[]            @relation("SubDepartmentEmployees")
+  responsibilities     Responsibility[]
   responsibilityGroups ResponsibilityGroup[]
 
   @@unique([departmentId, name])
@@ -102,37 +103,37 @@ model SubDepartment {
 }
 
 model Responsibility {
-  id            Int      @id @default(autoincrement())
-  title         String
-  description   String?  @db.Text
-  cycle         String   // Format: "YYYY-MM" for monthly cycles
-  isActive      Boolean  @default(true)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  
+  id          Int      @id @default(autoincrement())
+  title       String
+  description String?  @db.Text
+  cycle       String // Format: "YYYY-MM" for monthly cycles
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
   // Date range for visibility (staff can only see between these dates)
-  startDate     DateTime?  // When responsibility becomes visible to staff
-  endDate       DateTime?  // When responsibility expires and becomes hidden from staff
-  
+  startDate DateTime? // When responsibility becomes visible to staff
+  endDate   DateTime? // When responsibility expires and becomes hidden from staff
+
   // Allow staff to create their own daily responsibilities
-  isStaffCreated  Boolean  @default(false)  // True if created by staff for themselves
+  isStaffCreated Boolean @default(false) // True if created by staff for themselves
 
   // Relations
-  createdById      Int
-  createdBy        Employee          @relation("ResponsibilityCreator", fields: [createdById], references: [id], onDelete: Cascade)
-  
-  subDepartmentId  Int
-  subDepartment    SubDepartment @relation(fields: [subDepartmentId], references: [id], onDelete: Cascade)
-  
+  createdById Int
+  createdBy   Employee @relation("ResponsibilityCreator", fields: [createdById], references: [id], onDelete: Cascade)
+
+  subDepartmentId Int
+  subDepartment   SubDepartment @relation(fields: [subDepartmentId], references: [id], onDelete: Cascade)
+
   // For sub-responsibilities (hierarchical structure)
-  parentId         Int?
-  parent           Responsibility?  @relation("SubResponsibilities", fields: [parentId], references: [id], onDelete: Cascade)
+  parentId            Int?
+  parent              Responsibility?  @relation("SubResponsibilities", fields: [parentId], references: [id], onDelete: Cascade)
   subResponsibilities Responsibility[] @relation("SubResponsibilities")
-  
-  assignments      ResponsibilityAssignment[]
-  
+
+  assignments ResponsibilityAssignment[]
+
   // Groups this responsibility belongs to
-  groupItems       ResponsibilityGroupItem[]
+  groupItems ResponsibilityGroupItem[]
 
   @@index([subDepartmentId])
   @@index([createdById])
@@ -144,20 +145,20 @@ model Responsibility {
 }
 
 model ResponsibilityAssignment {
-  id              Int              @id @default(autoincrement())
-  status          AssignmentStatus @default(PENDING)
-  assignedAt      DateTime         @default(now())
-  dueDate         DateTime?        // Optional due date for the assignment
-  updatedAt       DateTime         @updatedAt
+  id         Int              @id @default(autoincrement())
+  status     AssignmentStatus @default(PENDING)
+  assignedAt DateTime         @default(now())
+  dueDate    DateTime? // Optional due date for the assignment
+  updatedAt  DateTime         @updatedAt
 
   // Relations
   responsibilityId Int
   responsibility   Responsibility @relation(fields: [responsibilityId], references: [id], onDelete: Cascade)
-  
-  staffId          Int
-  staff            Employee           @relation("StaffAssignments", fields: [staffId], references: [id], onDelete: Cascade)
-  
-  workSubmissions  WorkSubmission[]
+
+  staffId Int
+  staff   Employee @relation("StaffAssignments", fields: [staffId], references: [id], onDelete: Cascade)
+
+  workSubmissions WorkSubmission[]
 
   @@unique([responsibilityId, staffId])
   @@index([staffId])
@@ -167,38 +168,37 @@ model ResponsibilityAssignment {
 }
 
 model WorkSubmission {
-  id              Int       @id @default(autoincrement())
-  workDate        DateTime  @default(now()) @db.Date  // The date this work was performed (DATE only, no time)
+  id              Int              @id @default(autoincrement())
+  workDate        DateTime         @default(now()) @db.Date // The date this work was performed (DATE only, no time)
   hoursWorked     Float
-  status          SubmissionStatus @default(SUBMITTED)  // Per-submission status (independent for each day)
-  workProofType   WorkProofType?  // Type of proof submitted
-  workProofUrl    String?         // File path/URL to uploaded proof (PDF/Image)
-  workProofText   String?   @db.Text // Direct text proof
-  staffComment    String?   @db.Text
-  managerComment  String?   @db.Text
-  rejectionReason String?   @db.Text  // Reason for rejection if status is REJECTED
-  submittedAt     DateTime  @default(now())
+  status          SubmissionStatus @default(SUBMITTED) // Per-submission status (independent for each day)
+  workProofType   WorkProofType? // Type of proof submitted
+  workProofUrl    String? // File path/URL to uploaded proof (PDF/Image)
+  workProofText   String?          @db.Text // Direct text proof
+  staffComment    String?          @db.Text
+  managerComment  String?          @db.Text
+  rejectionReason String?          @db.Text // Reason for rejection if status is REJECTED
+  submittedAt     DateTime         @default(now())
   verifiedAt      DateTime?
-  updatedAt       DateTime  @updatedAt
+  updatedAt       DateTime         @updatedAt
 
   // Relations
-  assignmentId    Int
-  assignment      ResponsibilityAssignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
-  
-  staffId         Int
-  staff           Employee     @relation("StaffSubmissions", fields: [staffId], references: [id], onDelete: Cascade)
-  
-  verifiedById    Int?
-  verifiedBy      Employee?    @relation("ManagerVerifications", fields: [verifiedById], references: [id], onDelete: SetNull)
+  assignmentId Int
+  assignment   ResponsibilityAssignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
 
-  comments        Comment[]
+  staffId Int
+  staff   Employee @relation("StaffSubmissions", fields: [staffId], references: [id], onDelete: Cascade)
+
+  verifiedById Int?
+  verifiedBy   Employee? @relation("ManagerVerifications", fields: [verifiedById], references: [id], onDelete: SetNull)
+
+  comments Comment[]
 
   // Allow multiple submissions per assignment, but only one per day
   @@unique([assignmentId, workDate])
-
   // Note: assignmentId is @unique, so only one submission per assignment.
   // workDate + staffId index helps with daily queries.
-  @@index([staffId, workDate])  // For daily lookup per staff
+  @@index([staffId, workDate]) // For daily lookup per staff
   @@index([staffId])
   @@index([verifiedById])
   @@index([submittedAt])
@@ -207,18 +207,18 @@ model WorkSubmission {
 }
 
 model Comment {
-  id              Int      @id @default(autoincrement())
-  content         String   @db.Text
-  isManagerComment Boolean @default(false) // Distinguish between manager and staff comments
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id               Int      @id @default(autoincrement())
+  content          String   @db.Text
+  isManagerComment Boolean  @default(false) // Distinguish between manager and staff comments
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
   // Relations
-  submissionId    Int
-  submission      WorkSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
-  
-  authorId        Int
-  author          Employee      @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  submissionId Int
+  submission   WorkSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+
+  authorId Int
+  author   Employee @relation(fields: [authorId], references: [id], onDelete: Cascade)
 
   @@index([submissionId])
   @@index([authorId])
@@ -233,8 +233,8 @@ model Notification {
   createdAt DateTime         @default(now())
 
   // Relations
-  EmployeeId    Int
-  Employee      Employee             @relation(fields: [EmployeeId], references: [id], onDelete: Cascade)
+  EmployeeId Int
+  Employee   Employee @relation(fields: [EmployeeId], references: [id], onDelete: Cascade)
 
   @@index([EmployeeId, read])
   @@index([createdAt])
@@ -258,10 +258,10 @@ enum DepartmentType {
 }
 
 enum SubDepartmentType {
-  QUANTS 
+  QUANTS
   VERBALS
   SOFTSKILLS
-  SKILLS 
+  SKILLS
   ADMINISTRATION
 }
 
@@ -285,9 +285,9 @@ enum NotificationType {
 }
 
 enum SubmissionStatus {
-  SUBMITTED   // Submitted by staff, awaiting manager verification
-  VERIFIED    // Verified/approved by manager
-  REJECTED    // Rejected by manager
+  SUBMITTED // Submitted by staff, awaiting manager verification
+  VERIFIED // Verified/approved by manager
+  REJECTED // Rejected by manager
 }
 
 enum WorkProofType {
@@ -302,24 +302,24 @@ enum WorkProofType {
 
 // Represents a group of responsibilities (e.g., "January Month Responsibilities")
 model ResponsibilityGroup {
-  id            Int      @id @default(autoincrement())
-  name          String
-  description   String?  @db.Text
-  cycle         String?  // Optional: Format "YYYY-MM" for monthly grouping
-  isActive      Boolean  @default(true)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id          Int      @id @default(autoincrement())
+  name        String
+  description String?  @db.Text
+  cycle       String? // Optional: Format "YYYY-MM" for monthly grouping
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   // Relations
-  createdById      Int
-  createdBy        Employee @relation("GroupCreator", fields: [createdById], references: [id], onDelete: Cascade)
-  
-  subDepartmentId  Int
-  subDepartment    SubDepartment @relation(fields: [subDepartmentId], references: [id], onDelete: Cascade)
+  createdById Int
+  createdBy   Employee @relation("GroupCreator", fields: [createdById], references: [id], onDelete: Cascade)
+
+  subDepartmentId Int
+  subDepartment   SubDepartment @relation(fields: [subDepartmentId], references: [id], onDelete: Cascade)
 
   // Many-to-many with Responsibility via join table
-  items            ResponsibilityGroupItem[]
-  
+  items ResponsibilityGroupItem[]
+
   // Track group assignments to staff
   groupAssignments ResponsibilityGroupAssignment[]
 
@@ -332,14 +332,14 @@ model ResponsibilityGroup {
 
 // Join table: Maps responsibilities to groups (many-to-many)
 model ResponsibilityGroupItem {
-  id              Int      @id @default(autoincrement())
-  addedAt         DateTime @default(now())
-  displayOrder    Int      @default(0)  // Optional ordering within group
+  id           Int      @id @default(autoincrement())
+  addedAt      DateTime @default(now())
+  displayOrder Int      @default(0) // Optional ordering within group
 
   // Relations
-  groupId         Int
-  group           ResponsibilityGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  
+  groupId Int
+  group   ResponsibilityGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
   responsibilityId Int
   responsibility   Responsibility @relation(fields: [responsibilityId], references: [id], onDelete: Cascade)
 
@@ -351,21 +351,67 @@ model ResponsibilityGroupItem {
 // Tracks when a group was assigned to a staff member (for auditing)
 // The actual assignments are individual ResponsibilityAssignment records
 model ResponsibilityGroupAssignment {
-  id              Int      @id @default(autoincrement())
-  assignedAt      DateTime @default(now())
-  
+  id         Int      @id @default(autoincrement())
+  assignedAt DateTime @default(now())
+
   // Relations
-  groupId         Int
-  group           ResponsibilityGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  
-  staffId         Int
-  staff           Employee @relation("StaffGroupAssignments", fields: [staffId], references: [id], onDelete: Cascade)
-  
-  assignedById    Int
-  assignedBy      Employee @relation("GroupAssigner", fields: [assignedById], references: [id], onDelete: Cascade)
+  groupId Int
+  group   ResponsibilityGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  staffId Int
+  staff   Employee @relation("StaffGroupAssignments", fields: [staffId], references: [id], onDelete: Cascade)
+
+  assignedById Int
+  assignedBy   Employee @relation("GroupAssigner", fields: [assignedById], references: [id], onDelete: Cascade)
 
   @@unique([groupId, staffId])
   @@index([groupId])
   @@index([staffId])
   @@index([assignedById])
+}
+
+model Classroom {
+  id        Int      @id @default(autoincrement())
+  name      String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  bookings ClassroomBooking[]
+
+  @@unique([name])
+  @@index([isActive])
+}
+
+model ClassroomBooking {
+  id             Int       @id @default(autoincrement())
+  title          String
+  description    String?   @db.Text
+  bookingDate    DateTime  @db.Date
+  startTime      DateTime
+  endTime        DateTime
+  isCancelled    Boolean   @default(false)
+  cancelledAt    DateTime?
+  cancelledById  Int?
+  cancelledBy    Employee? @relation("BookingCancellation", fields: [cancelledById], references: [id], onDelete: SetNull)
+  isRecurring    Boolean   @default(false)
+  recurrenceRule String?
+  recurrenceEnd  DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  classroomId Int
+  classroom   Classroom @relation(fields: [classroomId], references: [id], onDelete: Cascade)
+
+  bookedById Int
+  bookedBy   Employee @relation("EmployeeBookings", fields: [bookedById], references: [id], onDelete: Cascade)
+
+  parentBookingId Int?
+  parentBooking   ClassroomBooking?  @relation("RecurringParent", fields: [parentBookingId], references: [id], onDelete: Cascade)
+  occurrences     ClassroomBooking[] @relation("RecurringParent")
+
+  @@index([classroomId, bookingDate])
+  @@index([bookedById])
+  @@index([isCancelled])
+  @@index([parentBookingId])
 }

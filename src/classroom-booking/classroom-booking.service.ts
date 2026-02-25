@@ -10,7 +10,73 @@ const prisma = new PrismaClient();
 
 @Injectable()
 export class ClassroomBookingService {
-  async create(dto: any, userId: number) {
+  private async resolveBookedById(
+    requesterId: number,
+    bookForUserId?: number,
+  ): Promise<number> {
+    const requester = await prisma.employee.findUnique({
+      where: { id: requesterId },
+      select: {
+        role: true,
+        subDepartmentId: true,
+      },
+    });
+
+    if (!requester) {
+      throw new ForbiddenException();
+    }
+
+    // STAFF → only self
+    if (requester.role === Role.STAFF) {
+      if (bookForUserId && bookForUserId !== requesterId) {
+        throw new ForbiddenException('Staff cannot book classrooms for others');
+      }
+      return requesterId;
+    }
+
+    // ADMIN → anyone
+    if (requester.role === Role.ADMIN) {
+      return bookForUserId ?? requesterId;
+    }
+
+    // MANAGER → staff under them
+    if (requester.role === Role.MANAGER) {
+      if (!bookForUserId) {
+        return requesterId;
+      }
+
+      const target = await prisma.employee.findUnique({
+        where: { id: bookForUserId },
+        select: {
+          role: true,
+          subDepartmentId: true,
+        },
+      });
+
+      if (!target) {
+        throw new BadRequestException('Target user not found');
+      }
+
+      if (target.role !== Role.STAFF) {
+        throw new ForbiddenException('Manager can book only for staff');
+      }
+
+      if (target.subDepartmentId !== requester.subDepartmentId) {
+        throw new ForbiddenException(
+          'Manager can book only for staff under them',
+        );
+      }
+
+      return bookForUserId;
+    }
+
+    throw new ForbiddenException();
+  }
+
+  // =========================
+  // CREATE BOOKING
+  // =========================
+  async create(dto: any, requesterId: number) {
     if (
       !dto.classroomId ||
       !dto.bookingDate ||
@@ -37,10 +103,7 @@ export class ClassroomBookingService {
     }
 
     const classroom = await prisma.classroom.findFirst({
-      where: {
-        id: dto.classroomId,
-        isActive: true,
-      },
+      where: { id: dto.classroomId, isActive: true },
     });
 
     if (!classroom) {
@@ -61,24 +124,27 @@ export class ClassroomBookingService {
       throw new ConflictException('Classroom already booked');
     }
 
+    const bookedById = await this.resolveBookedById(
+      requesterId,
+      dto.bookForUserId,
+    );
+
     return prisma.classroomBooking.create({
       data: {
         title: dto.title,
         description: dto.description,
         classroomId: dto.classroomId,
-        bookedById: userId,
+        bookedById,
         bookingDate,
         startTime,
         endTime,
-        isRecurring: dto.isRecurring ?? false,
-        recurrenceRule: dto.recurrenceRule,
-        recurrenceEnd: dto.recurrenceEnd
-          ? new Date(dto.recurrenceEnd)
-          : null,
       },
     });
   }
 
+  // =========================
+  // FIND BOOKINGS BY DATE
+  // =========================
   async findByDate(classroomId: number, date: string) {
     const bookingDate = new Date(date);
 
@@ -105,9 +171,20 @@ export class ClassroomBookingService {
     });
   }
 
-  async cancel(bookingId: number, userId: number) {
+  // =========================
+  // CANCEL BOOKING
+  // =========================
+  async cancel(bookingId: number, requesterId: number) {
     const booking = await prisma.classroomBooking.findUnique({
       where: { id: bookingId },
+      include: {
+        bookedBy: {
+          select: {
+            id: true,
+            subDepartmentId: true,
+          },
+        },
+      },
     });
 
     if (!booking) {
@@ -118,21 +195,30 @@ export class ClassroomBookingService {
       throw new BadRequestException('Booking already cancelled');
     }
 
-    const user = await prisma.employee.findUnique({
-      where: { id: userId },
-      select: { role: true },
+    const requester = await prisma.employee.findUnique({
+      where: { id: requesterId },
+      select: {
+        role: true,
+        subDepartmentId: true,
+      },
     });
 
-    if (!user) {
+    if (!requester) {
       throw new ForbiddenException();
     }
 
-    const isOwner = booking.bookedById === userId;
-    const isManagerOrAdmin =
-      user.role === Role.ADMIN || user.role === Role.MANAGER;
+    const isOwner = booking.bookedById === requesterId;
 
-    if (!isOwner && !isManagerOrAdmin) {
-      throw new ForbiddenException('Not allowed to cancel this booking');
+    if (requester.role === Role.ADMIN) {
+      // allowed
+    } else if (requester.role === Role.MANAGER) {
+      if (booking.bookedBy.subDepartmentId !== requester.subDepartmentId) {
+        throw new ForbiddenException(
+          'Manager can cancel only bookings under them',
+        );
+      }
+    } else if (!isOwner) {
+      throw new ForbiddenException('You cannot cancel this booking');
     }
 
     return prisma.classroomBooking.update({
@@ -140,7 +226,7 @@ export class ClassroomBookingService {
       data: {
         isCancelled: true,
         cancelledAt: new Date(),
-        cancelledById: userId,
+        cancelledById: requesterId,
       },
     });
   }

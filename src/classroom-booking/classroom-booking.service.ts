@@ -10,6 +10,23 @@ const prisma = new PrismaClient();
 
 @Injectable()
 export class ClassroomBookingService {
+  private parseWeeklyDays(rule: string): number[] {
+    // Example: FREQ=WEEKLY;BYDAY=MO,WE
+    const match = rule.match(/BYDAY=([A-Z,]+)/);
+    if (!match) return [];
+
+    const dayMap: Record<string, number> = {
+      SU: 0,
+      MO: 1,
+      TU: 2,
+      WE: 3,
+      TH: 4,
+      FR: 5,
+      SA: 6,
+    };
+
+    return match[1].split(',').map((d) => dayMap[d]);
+  }
   private async resolveBookedById(
     requesterId: number,
     bookForUserId?: number,
@@ -110,6 +127,12 @@ export class ClassroomBookingService {
       throw new BadRequestException('Classroom not found or inactive');
     }
 
+    const bookedById = await this.resolveBookedById(
+      requesterId,
+      dto.bookForUserId,
+    );
+
+    // ===== PARENT CONFLICT CHECK =====
     const conflict = await prisma.classroomBooking.findFirst({
       where: {
         classroomId: dto.classroomId,
@@ -124,12 +147,8 @@ export class ClassroomBookingService {
       throw new ConflictException('Classroom already booked');
     }
 
-    const bookedById = await this.resolveBookedById(
-      requesterId,
-      dto.bookForUserId,
-    );
-
-    return prisma.classroomBooking.create({
+    // ===== CREATE PARENT BOOKING =====
+    const parent = await prisma.classroomBooking.create({
       data: {
         title: dto.title,
         description: dto.description,
@@ -138,10 +157,77 @@ export class ClassroomBookingService {
         bookingDate,
         startTime,
         endTime,
+        isRecurring: dto.isRecurring ?? false,
+        recurrenceRule: dto.recurrenceRule,
+        recurrenceEnd: dto.recurrenceEnd ? new Date(dto.recurrenceEnd) : null,
       },
     });
-  }
 
+    // ===== NO RECURRENCE → DONE =====
+    if (!dto.isRecurring || !dto.recurrenceRule || !dto.recurrenceEnd) {
+      return parent;
+    }
+
+    // ===== GENERATE OCCURRENCES =====
+    const days = this.parseWeeklyDays(dto.recurrenceRule);
+    const recurrenceEnd = new Date(dto.recurrenceEnd);
+
+    const occurrences: any[] = [];
+    let cursor = new Date(bookingDate);
+
+    while (cursor <= recurrenceEnd) {
+      if (days.includes(cursor.getDay())) {
+        // skip parent date
+        if (cursor.toDateString() !== bookingDate.toDateString()) {
+          const occStart = new Date(startTime);
+          const occEnd = new Date(endTime);
+
+          occStart.setFullYear(
+            cursor.getFullYear(),
+            cursor.getMonth(),
+            cursor.getDate(),
+          );
+          occEnd.setFullYear(
+            cursor.getFullYear(),
+            cursor.getMonth(),
+            cursor.getDate(),
+          );
+
+          const occConflict = await prisma.classroomBooking.findFirst({
+            where: {
+              classroomId: dto.classroomId,
+              bookingDate: cursor,
+              isCancelled: false,
+              startTime: { lt: occEnd },
+              endTime: { gt: occStart },
+            },
+          });
+
+          if (!occConflict) {
+            occurrences.push({
+              title: dto.title,
+              description: dto.description,
+              classroomId: dto.classroomId,
+              bookedById,
+              bookingDate: new Date(cursor),
+              startTime: occStart,
+              endTime: occEnd,
+              parentBookingId: parent.id,
+            });
+          }
+        }
+      }
+      cursor.setDate(cursor.getDate() + 1);
+    }
+
+    if (occurrences.length > 0) {
+      await prisma.classroomBooking.createMany({
+        data: occurrences,
+      });
+    }
+
+    return parent;
+  }
   // =========================
   // FIND BOOKINGS BY DATE
   // =========================
@@ -174,7 +260,11 @@ export class ClassroomBookingService {
   // =========================
   // CANCEL BOOKING
   // =========================
-  async cancel(bookingId: number, requesterId: number) {
+  async cancel(
+    bookingId: number,
+    requesterId: number,
+    scope: 'single' | 'series' = 'single',
+  ) {
     const booking = await prisma.classroomBooking.findUnique({
       where: { id: bookingId },
       include: {
@@ -209,6 +299,7 @@ export class ClassroomBookingService {
 
     const isOwner = booking.bookedById === requesterId;
 
+    // ===== AUTHORIZATION =====
     if (requester.role === Role.ADMIN) {
       // allowed
     } else if (requester.role === Role.MANAGER) {
@@ -221,13 +312,33 @@ export class ClassroomBookingService {
       throw new ForbiddenException('You cannot cancel this booking');
     }
 
-    return prisma.classroomBooking.update({
-      where: { id: bookingId },
+    // ===== SINGLE BOOKING =====
+    if (scope === 'single') {
+      return prisma.classroomBooking.update({
+        where: { id: bookingId },
+        data: {
+          isCancelled: true,
+          cancelledAt: new Date(),
+          cancelledById: requesterId,
+        },
+      });
+    }
+
+    // ===== SERIES CANCELLATION =====
+    const parentId = booking.parentBookingId ?? booking.id;
+
+    await prisma.classroomBooking.updateMany({
+      where: {
+        OR: [{ id: parentId }, { parentBookingId: parentId }],
+        isCancelled: false,
+      },
       data: {
         isCancelled: true,
         cancelledAt: new Date(),
         cancelledById: requesterId,
       },
     });
+
+    return { message: 'Recurring booking series cancelled' };
   }
 }

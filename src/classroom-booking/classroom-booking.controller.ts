@@ -5,6 +5,7 @@ import {
   Get,
   Param,
   Post,
+  Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
@@ -35,7 +36,15 @@ export class ClassroomBookingController {
 
   @UseGuards(JwtAuthGuard)
   @Delete(':id')
-  cancel(@Param('id') id: string, @Req() req: any) {
-    return this.classroomBookingService.cancel(+id, req.user.id);
+  cancel(
+    @Param('id') id: string,
+    @Req() req: any,
+    @Query('scope') scope?: 'single' | 'series',
+  ) {
+    return this.classroomBookingService.cancel(
+      +id,
+      req.user.id,
+      scope ?? 'single',
+    );
   }
 }

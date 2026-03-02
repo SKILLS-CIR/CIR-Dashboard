@@ -1,4 +1,10 @@
-import { IsDateString, IsInt, IsOptional, IsString } from 'class-validator';
+import {
+  IsBoolean,
+  IsDateString,
+  IsInt,
+  IsOptional,
+  IsString,
+} from 'class-validator';
 
 export class CreateClassroomBookingDto {
   @IsString()
@@ -23,4 +29,16 @@ export class CreateClassroomBookingDto {
   @IsOptional()
   @IsInt()
   bookForUserId?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  isReccuring?: boolean;
+
+  @IsOptional()
+  @IsString()
+  recurrenceRule?: string;
+
+  @IsOptional()
+  @IsDateString()
+  recurrenceEnd?: string;
 }

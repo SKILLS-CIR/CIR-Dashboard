@@ -36,15 +36,7 @@ export class ClassroomBookingController {
 
   @UseGuards(JwtAuthGuard)
   @Delete(':id')
-  cancel(
-    @Param('id') id: string,
-    @Req() req: any,
-    @Query('scope') scope?: 'single' | 'series',
-  ) {
-    return this.classroomBookingService.cancel(
-      +id,
-      req.user.id,
-      scope ?? 'single',
-    );
+  cancel(@Param('id') id: string, @Req() req: any) {
+    return this.classroomBookingService.cancel(+id, req.user.id);
   }
 }

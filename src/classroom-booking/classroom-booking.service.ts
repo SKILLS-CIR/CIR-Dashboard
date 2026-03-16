@@ -4,12 +4,12 @@ import {
   ForbiddenException,
   Injectable,
 } from '@nestjs/common';
-import { PrismaClient, Role } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { Role } from '@prisma/client';
+import { DatabaseService } from 'src/database/database.service';
 
 @Injectable()
 export class ClassroomBookingService {
+  constructor(private readonly databaseService: DatabaseService) {}
   private parseWeeklyDays(rule: string): number[] {
     // Example: FREQ=WEEKLY;BYDAY=MO,WE
     const match = rule.match(/BYDAY=([A-Z,]+)/);
@@ -31,7 +31,7 @@ export class ClassroomBookingService {
     requesterId: number,
     bookForUserId?: number,
   ): Promise<number> {
-    const requester = await prisma.employee.findUnique({
+    const requester = await this.databaseService.employee.findUnique({
       where: { id: requesterId },
       select: {
         role: true,
@@ -62,7 +62,7 @@ export class ClassroomBookingService {
         return requesterId;
       }
 
-      const target = await prisma.employee.findUnique({
+      const target = await this.databaseService.employee.findUnique({
         where: { id: bookForUserId },
         select: {
           role: true,
@@ -119,7 +119,7 @@ export class ClassroomBookingService {
       throw new BadRequestException('Invalid time range');
     }
 
-    const classroom = await prisma.classroom.findFirst({
+    const classroom = await this.databaseService.classroom.findFirst({
       where: { id: dto.classroomId, isActive: true },
     });
 
@@ -133,7 +133,7 @@ export class ClassroomBookingService {
     );
 
     // ===== PARENT CONFLICT CHECK =====
-    const conflict = await prisma.classroomBooking.findFirst({
+    const conflict = await this.databaseService.classroomBooking.findFirst({
       where: {
         classroomId: dto.classroomId,
         bookingDate,
@@ -148,7 +148,7 @@ export class ClassroomBookingService {
     }
 
     // ===== CREATE PARENT BOOKING =====
-    const parent = await prisma.classroomBooking.create({
+    const parent = await this.databaseService.classroomBooking.create({
       data: {
         title: dto.title,
         description: dto.description,
@@ -193,7 +193,7 @@ export class ClassroomBookingService {
             cursor.getDate(),
           );
 
-          const occConflict = await prisma.classroomBooking.findFirst({
+          const occConflict = await this.databaseService.classroomBooking.findFirst({
             where: {
               classroomId: dto.classroomId,
               bookingDate: cursor,
@@ -221,7 +221,7 @@ export class ClassroomBookingService {
     }
 
     if (occurrences.length > 0) {
-      await prisma.classroomBooking.createMany({
+      await this.databaseService.classroomBooking.createMany({
         data: occurrences,
       });
     }
@@ -238,7 +238,7 @@ export class ClassroomBookingService {
       throw new BadRequestException('Invalid date');
     }
 
-    return prisma.classroomBooking.findMany({
+    return this.databaseService.classroomBooking.findMany({
       where: {
         classroomId,
         bookingDate,
@@ -246,11 +246,18 @@ export class ClassroomBookingService {
       },
       orderBy: { startTime: 'asc' },
       include: {
+        classroom: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
         bookedBy: {
           select: {
             id: true,
             name: true,
             email: true,
+            role: true,
           },
         },
       },
@@ -260,20 +267,13 @@ export class ClassroomBookingService {
   // =========================
   // CANCEL BOOKING
   // =========================
-  async cancel(
-    bookingId: number,
-    requesterId: number,
-    scope: 'single' | 'series' = 'single',
-  ) {
-    const booking = await prisma.classroomBooking.findUnique({
+  async cancel(bookingId: number, userId: number) {
+    const booking = await this.databaseService.classroomBooking.findUnique({
       where: { id: bookingId },
-      include: {
-        bookedBy: {
-          select: {
-            id: true,
-            subDepartmentId: true,
-          },
-        },
+      select: {
+        id: true,
+        bookedById: true,
+        isCancelled: true,
       },
     });
 
@@ -285,60 +285,36 @@ export class ClassroomBookingService {
       throw new BadRequestException('Booking already cancelled');
     }
 
-    const requester = await prisma.employee.findUnique({
-      where: { id: requesterId },
-      select: {
-        role: true,
-        subDepartmentId: true,
-      },
+    const user = await this.databaseService.employee.findUnique({
+      where: { id: userId },
+      select: { role: true },
     });
 
-    if (!requester) {
+    if (!user) {
       throw new ForbiddenException();
     }
 
-    const isOwner = booking.bookedById === requesterId;
+    const isOwner = booking.bookedById === userId;
+    const isAdmin = user.role === Role.ADMIN;
 
-    // ===== AUTHORIZATION =====
-    if (requester.role === Role.ADMIN) {
-      // allowed
-    } else if (requester.role === Role.MANAGER) {
-      if (booking.bookedBy.subDepartmentId !== requester.subDepartmentId) {
-        throw new ForbiddenException(
-          'Manager can cancel only bookings under them',
-        );
-      }
-    } else if (!isOwner) {
-      throw new ForbiddenException('You cannot cancel this booking');
+    // DEBUG LOGS
+    console.log('booking.bookedById:', booking.bookedById);
+    console.log('current userId:', userId);
+    console.log('isOwner:', isOwner);
+    console.log('user.role:', user.role);
+    console.log('isAdmin:', isAdmin);
+
+    if (!isOwner && !isAdmin) {
+      throw new ForbiddenException('You can only cancel your own booking');
     }
 
-    // ===== SINGLE BOOKING =====
-    if (scope === 'single') {
-      return prisma.classroomBooking.update({
-        where: { id: bookingId },
-        data: {
-          isCancelled: true,
-          cancelledAt: new Date(),
-          cancelledById: requesterId,
-        },
-      });
-    }
-
-    // ===== SERIES CANCELLATION =====
-    const parentId = booking.parentBookingId ?? booking.id;
-
-    await prisma.classroomBooking.updateMany({
-      where: {
-        OR: [{ id: parentId }, { parentBookingId: parentId }],
-        isCancelled: false,
-      },
+    return this.databaseService.classroomBooking.update({
+      where: { id: bookingId },
       data: {
         isCancelled: true,
         cancelledAt: new Date(),
-        cancelledById: requesterId,
+        cancelledById: userId,
       },
     });
-
-    return { message: 'Recurring booking series cancelled' };
   }
 }

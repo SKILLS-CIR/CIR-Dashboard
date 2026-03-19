@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
@@ -29,10 +30,24 @@ export class ClassroomController {
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ADMIN', 'MANAGER')
+  @Roles('ADMIN')
   @Patch(':id/disable')
   disable(@Param('id') id: string) {
     return this.classroomService.disable(+id);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
+  @Patch(':id/enable')
+  enable(@Param('id') id: string) {
+    return this.classroomService.enable(+id);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
+  @Delete(':id')
+  delete(@Param('id') id: string) {
+    return this.classroomService.delete(+id);
   }
 }
 

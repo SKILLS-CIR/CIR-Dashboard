@@ -19,7 +19,6 @@ export class ClassroomService {
 
   async findAll() {
     return prisma.classroom.findMany({
-      where: { isActive: true },
       orderBy: { name: 'asc' },
     });
   }
@@ -28,6 +27,19 @@ export class ClassroomService {
     return prisma.classroom.update({
       where: { id },
       data: { isActive: false },
+    });
+  }
+
+  async enable(id: number) {
+    return prisma.classroom.update({
+      where: { id },
+      data: { isActive: true },
+    });
+  }
+
+  async delete(id: number) {
+    return prisma.classroom.delete({
+      where: { id },
     });
   }
 }

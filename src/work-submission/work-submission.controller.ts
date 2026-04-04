@@ -26,7 +26,7 @@ export class WorkSubmissionController {
   constructor(private readonly workSubmissionService: WorkSubmissionService) {}
 
   @Post()
-  @Roles('ADMIN', 'STAFF')  // ← Changed: Removed MANAGER
+  @Roles('ADMIN', 'STAFF', 'MANAGER')  // ← Changed: Removed MANAGER   //added: MANAGER back
   async create(
     @Body() createWorkSubmissionDto: Prisma.WorkSubmissionCreateInput,
     @Request() req,

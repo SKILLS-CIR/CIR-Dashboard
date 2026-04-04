@@ -365,6 +365,9 @@ export class WorkSubmissionService {
       if (submissionSubDepartmentId !== verifierSubDepartmentId) {
         throw new ForbiddenException('Managers can only verify submissions within their sub-department');
       }
+      if (submission.staffId === verifierId) {
+        throw new ForbiddenException('Managers cannot verify their own submissions');
+      }
     }
     // ADMIN can verify any submission
 
@@ -548,15 +551,15 @@ export class WorkSubmissionService {
     }
 
     // 2. STAFF can only submit their own work
-    if (userRole === 'STAFF') {
+    if (userRole === 'STAFF' || userRole === 'MANAGER') {  //added Manager here for testing 
       if (staffIdFromDto !== userId) {
         throw new ForbiddenException('Staff can only submit their own work');
       }
     }
 
     // 3. MANAGER cannot submit work submissions
-    if (userRole === 'MANAGER') {
-      throw new ForbiddenException('Managers cannot submit work. Only verify.');
+    if (userRole === 'ADMIN') {
+      throw new ForbiddenException('Admin cannot submit work. Only verify.');
     }
 
     // 4. Verify assignment exists and belongs to this staff

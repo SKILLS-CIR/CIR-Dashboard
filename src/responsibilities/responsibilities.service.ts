@@ -40,14 +40,14 @@ export class ResponsibilitiesService {
       throw new BadRequestException('Sub-department is required to create responsibilities');
     }
 
-    // Staff creating their own responsibility
-    if (userRole === 'STAFF') {
-      // Staff must have a sub-department
+    // Staff creating their own responsibility, OR explicitly explicitly marked (e.g., Manager self-service flow)
+    if (userRole === 'STAFF' || isStaffCreated) {
+      // Must be assigned to a sub-department
       if (!userSubDepartmentId) {
-        throw new BadRequestException('Staff must be assigned to a sub-department to create responsibilities');
+        throw new BadRequestException('User must be assigned to a sub-department to create self-service responsibilities');
       }
       
-      // Staff can ONLY create for themselves - automatically set isStaffCreated
+      // Can ONLY create for themselves - automatically set isStaffCreated
       const today = this.getDateOnly(new Date());
       const start = startDate ? this.getDateOnly(new Date(startDate)) : today;
       const end = endDate ? this.getDateOnly(new Date(endDate)) : today;

@@ -26,7 +26,7 @@ export class WorkSubmissionController {
   constructor(private readonly workSubmissionService: WorkSubmissionService) {}
 
   @Post()
-  @Roles('ADMIN', 'STAFF', 'MANAGER')  // ← Changed: Removed MANAGER   //added: MANAGER back
+  @Roles('STAFF', 'MANAGER')
   async create(
     @Body() createWorkSubmissionDto: Prisma.WorkSubmissionCreateInput,
     @Request() req,
@@ -176,7 +176,7 @@ export class WorkSubmissionController {
    * Staff can update their rejected submission with corrected details
    */
   @Post(':id/resubmit')
-  @Roles('STAFF', 'ADMIN')
+  @Roles('STAFF', 'ADMIN', 'MANAGER')
   async resubmit(
     @Param('id', ParseIntPipe) id: number,
     @Body() resubmitDto: {

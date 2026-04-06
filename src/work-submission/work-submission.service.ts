@@ -343,12 +343,11 @@ export class WorkSubmissionService {
       throw new NotFoundException(`Work submission with ID ${submissionId} not found`);
     }
 
-    // 2. Check if already verified
-
-    //add for manager to approve and reject 
-    // if (submission.verifiedAt) {
-    //   throw new BadRequestException('This submission has already been verified');
-    // }
+    // 2. Check if already verified with the SAME decision
+    const newStatus = approved ? 'VERIFIED' : 'REJECTED';
+    if (submission.status === newStatus) {
+      throw new BadRequestException(`This submission is already marked as ${newStatus}.`);
+    }
 
     // 3. Get the sub-department this submission belongs to
     const submissionSubDepartmentId = submission.assignment?.responsibility?.subDepartmentId;
@@ -372,8 +371,6 @@ export class WorkSubmissionService {
     // ADMIN can verify any submission
 
     // 5. Update submission status (per-submission, not assignment-level)
-    const newStatus = approved ? 'VERIFIED' : 'REJECTED';
-
     // Update only the WorkSubmission - NOT the assignment status
     // This allows each day's submission to have its own status
     return this.databaseService.workSubmission.update({
@@ -550,16 +547,11 @@ export class WorkSubmissionService {
       throw new BadRequestException('Staff ID is required');
     }
 
-    // 2. STAFF can only submit their own work
-    if (userRole === 'STAFF' || userRole === 'MANAGER') {  //added Manager here for testing 
+    // 2. STAFF and MANAGER can only submit their own work
+    if (userRole === 'STAFF' || userRole === 'MANAGER') {
       if (staffIdFromDto !== userId) {
-        throw new ForbiddenException('Staff can only submit their own work');
+        throw new ForbiddenException('You can only submit your own work');
       }
-    }
-
-    // 3. MANAGER cannot submit work submissions
-    if (userRole === 'ADMIN') {
-      throw new ForbiddenException('Admin cannot submit work. Only verify.');
     }
 
     // 4. Verify assignment exists and belongs to this staff

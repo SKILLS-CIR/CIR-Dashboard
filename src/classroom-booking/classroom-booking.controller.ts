@@ -35,6 +35,18 @@ export class ClassroomBookingController {
   }
 
   @UseGuards(JwtAuthGuard)
+  @Get('date/:date')
+  findAllByDate(@Param('date') date: string) {
+    return this.classroomBookingService.findAllByDate(date);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('classroom/:classroomId/all')
+  findAllByClassroom(@Param('classroomId') classroomId: string) {
+    return this.classroomBookingService.findAllByClassroom(+classroomId);
+  }
+
+  @UseGuards(JwtAuthGuard)
   @Delete(':id')
   cancel(@Param('id') id: string, @Req() req: any) {
     return this.classroomBookingService.cancel(+id, req.user.id);

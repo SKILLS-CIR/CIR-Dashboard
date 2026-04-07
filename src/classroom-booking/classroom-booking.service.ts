@@ -238,13 +238,88 @@ export class ClassroomBookingService {
       throw new BadRequestException('Invalid date');
     }
 
+    // Set bounds for the entire day to avoid timezone mismatches
+    const startOfDay = new Date(bookingDate);
+    startOfDay.setUTCHours(0, 0, 0, 0);
+    const endOfDay = new Date(bookingDate);
+    endOfDay.setUTCHours(23, 59, 59, 999);
+
     return this.databaseService.classroomBooking.findMany({
       where: {
         classroomId,
-        bookingDate,
+        bookingDate: { gte: startOfDay, lte: endOfDay },
         isCancelled: false,
       },
       orderBy: { startTime: 'asc' },
+      include: {
+        classroom: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        bookedBy: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            role: true,
+          },
+        },
+      },
+    });
+  }
+
+  /**
+   * Get all bookings across ALL classrooms for a specific date.
+   */
+  async findAllByDate(date: string) {
+    const bookingDate = new Date(date);
+
+    if (isNaN(bookingDate.getTime())) {
+      throw new BadRequestException('Invalid date');
+    }
+
+    const startOfDay = new Date(bookingDate);
+    startOfDay.setUTCHours(0, 0, 0, 0);
+    const endOfDay = new Date(bookingDate);
+    endOfDay.setUTCHours(23, 59, 59, 999);
+
+    return this.databaseService.classroomBooking.findMany({
+      where: {
+        bookingDate: { gte: startOfDay, lte: endOfDay },
+        isCancelled: false,
+      },
+      orderBy: [{ classroom: { name: 'asc' } }, { startTime: 'asc' }],
+      include: {
+        classroom: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        bookedBy: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            role: true,
+          },
+        },
+      },
+    });
+  }
+
+  /**
+   * Get all bookings for a specific classroom across ALL dates.
+   */
+  async findAllByClassroom(classroomId: number) {
+    return this.databaseService.classroomBooking.findMany({
+      where: {
+        classroomId,
+        isCancelled: false,
+      },
+      orderBy: [{ bookingDate: 'asc' }, { startTime: 'asc' }],
       include: {
         classroom: {
           select: {

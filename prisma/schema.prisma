@@ -50,6 +50,7 @@ model Employee {
   assignedGroupsToOthers     ResponsibilityGroupAssignment[] @relation("GroupAssigner")
   classroomBookings          ClassroomBooking[]              @relation("EmployeeBookings")
   cancelledClassroomBookings ClassroomBooking[]              @relation("BookingCancellation")
+  timetableEntries           TimetableEntry[]                @relation("StaffTimetableEntries")
 
   // Sem Report relations
   semReports                 SemReport[]                     @relation("StaffSemReports")
@@ -100,6 +101,7 @@ model SubDepartment {
   staff                Employee[]            @relation("SubDepartmentEmployees")
   responsibilities     Responsibility[]
   responsibilityGroups ResponsibilityGroup[]
+  timetables           Timetable[]
 
   @@unique([departmentId, name])
   @@index([departmentId])
@@ -383,7 +385,8 @@ model Classroom {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  bookings ClassroomBooking[]
+  bookings         ClassroomBooking[]
+  timetableEntries TimetableEntry[]
 
   @@unique([name])
   @@index([isActive])
@@ -505,4 +508,43 @@ model SemReportAttachment {
   semReportItem   SemReportItem @relation(fields: [semReportItemId], references: [id], onDelete: Cascade)
 
   @@index([semReportItemId])
+}
+
+// ============================================
+// TIMETABLE MANAGEMENT FEATURE
+// ============================================
+
+model Timetable {
+  id                Int       @id @default(autoincrement())
+  subDepartmentId   Int
+  semesterStartDate DateTime  @db.Date
+  semesterEndDate   DateTime  @db.Date
+  isPublished       Boolean   @default(false)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  subDepartment   SubDepartment @relation(fields: [subDepartmentId], references: [id], onDelete: Cascade)
+  entries         TimetableEntry[]
+
+  @@index([subDepartmentId])
+}
+
+model TimetableEntry {
+  id           Int      @id @default(autoincrement())
+  timetableId  Int
+  day          String   // Monday–Saturday
+  staffId      Int
+  batch        String
+  topic        String
+  startTime    DateTime
+  endTime      DateTime
+  classroomId  Int
+
+  timetable    Timetable @relation(fields: [timetableId], references: [id], onDelete: Cascade)
+  staff        Employee  @relation("StaffTimetableEntries", fields: [staffId], references: [id], onDelete: Cascade)
+  classroom    Classroom @relation(fields: [classroomId], references: [id], onDelete: Cascade)
+
+  @@index([timetableId])
+  @@index([staffId])
+  @@index([classroomId])
 }

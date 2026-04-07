@@ -28,6 +28,7 @@ export class AllExceptionsFilter extends BaseExceptionFilter {
         if (exception instanceof HttpException) {
             responseObj.statusCode = exception.getStatus();
             const res = exception.getResponse();
+            responseObj.response = typeof res === 'string' ? res : (res as any)?.message || res;
         } else if (exception instanceof PrismaClientValidationError) {
             responseObj.statusCode = 422
             responseObj.response = exception.message.replaceAll(/\n/g, ' ');

@@ -19,6 +19,7 @@ import { ProfileModule } from './profile/profile.module';
 import { ClassroomBookingModule } from './classroom-booking/classroom-booking.module';
 import { ClassroomModule } from './classroom/classroom.module';
 import { SemreportModule } from './semreport/semreport.module';
+import { TimetableModule } from './timetable/timetable.module';
 
 @Module({
   imports: [
@@ -54,6 +55,7 @@ import { SemreportModule } from './semreport/semreport.module';
     ClassroomBookingModule,
     ClassroomModule,
     SemreportModule,
+    TimetableModule,
   ],
   controllers: [AppController],
   providers: [

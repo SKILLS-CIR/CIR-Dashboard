@@ -220,12 +220,26 @@ export class ResponsibilitiesService {
     });
   }
 
-  async update(id: number, updateResponsibilityDto: Prisma.ResponsibilityUpdateInput) {
+  async update(id: number, updateResponsibilityDto: Prisma.ResponsibilityUpdateInput | any) {
+    const data = { ...updateResponsibilityDto };
+
+    if (data.startDate) {
+      data.startDate = this.getDateOnly(new Date(data.startDate));
+    }
+    
+    if (data.endDate) {
+      data.endDate = this.getEndOfDay(new Date(data.endDate));
+    }
+
+    if (data.startDate && data.endDate && data.endDate < data.startDate) {
+      throw new BadRequestException('End date cannot be before start date');
+    }
+
     return this.databaseService.responsibility.update({
       where: {
         id,
       },
-      data: updateResponsibilityDto,
+      data,
     });
   }
 

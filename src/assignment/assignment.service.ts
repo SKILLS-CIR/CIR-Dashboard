@@ -158,6 +158,9 @@ export class AssignmentService {
               description: true,
               cycle: true,
               subDepartmentId: true,
+              startDate: true,
+              endDate: true,
+              isStaffCreated: true,
             },
           },
           staff: {
@@ -199,6 +202,9 @@ export class AssignmentService {
               description: true,
               cycle: true,
               subDepartmentId: true,
+              startDate: true,
+              endDate: true,
+              isStaffCreated: true,
             },
           },
           staff: {

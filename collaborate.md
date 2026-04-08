@@ -543,18 +543,18 @@ Similar CRUD endpoints exist for:
 | Update | ✅ | ✅ | ❌ | STAFF cannot update |
 | Delete | ✅ | ✅ | ❌ | STAFF cannot delete |
 | **Assignments** |
-| Create | ✅ | ✅ | ✅ | Auth required |
+| Create | ✅ All | ✅ Sub-dept | ✅ | Auth required, Admins can assign any staff |
 | Read (List) | ✅ All | ✅ Sub-dept | ✅ Own | Scoped by role |
 | Read (Single) | ✅ | ✅ | ✅ | Auth required |
 | Update | ✅ | ✅ | ✅ | Auth required |
-| Delete | ✅ | ✅ | ✅ | Auth required |
+| Delete | ✅ All | ✅ Sub-dept | ✅ | Admins can unassign any staff |
 | **Work Submissions** |
-| Create | ✅ | ❌ | ✅ | MANAGER cannot create submissions |
+| Create | ✅ | ✅ Own | ✅ | MANAGER can create submissions for self via Work Calendar |
 | Read (List) | ✅ All | ✅ Sub-dept | ✅ Own | Scoped by role |
 | Read (Today/Daily) | ✅ | ✅ | ✅ | Scoped by role |
-| Read (Hours) | ✅ | ✅ | ✅ Own | STAFF only sees own hours |
-| Read (Calendar) | ✅ | ✅ | ✅ Own | STAFF only sees own calendar |
-| Update | ✅ | ✅ | ✅ | Protected (verification fields blocked for STAFF) |
+| Read (Hours) | ✅ | ✅ Own | ✅ Own | STAFF/MANAGER only sees own hours |
+| Read (Calendar) | ✅ | ✅ Own | ✅ Own | STAFF/MANAGER only sees own calendar |
+| Update | ✅ | ✅ | ✅ | Protected (verification fields blocked for STAFF/MANAGER self-updates) |
 | Delete | ✅ | ❌ | ❌ | Only ADMIN can delete |
 | Verify | ✅ | ✅ | ❌ | Same sub-department required for MANAGER |
 | **Comments** |

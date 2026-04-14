@@ -234,18 +234,21 @@ model Comment {
 }
 
 model Notification {
-  id        Int              @id @default(autoincrement())
-  message   String           @db.Text
-  type      NotificationType
-  read      Boolean          @default(false)
-  createdAt DateTime         @default(now())
+  id          Int      @id @default(autoincrement())
+  userId      Int
 
-  // Relations
-  EmployeeId Int
-  Employee   Employee @relation(fields: [EmployeeId], references: [id], onDelete: Cascade)
+  title       String
+  message     String
+  type        String
 
-  @@index([EmployeeId, read])
-  @@index([createdAt])
+  entityId    Int?
+  entityType  String?
+
+  isRead      Boolean  @default(false)
+
+  createdAt   DateTime @default(now())
+
+  user        Employee @relation(fields: [userId], references: [id])
 }
 
 // Enums

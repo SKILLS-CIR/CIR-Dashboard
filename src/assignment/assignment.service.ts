@@ -1,10 +1,14 @@
 import { Injectable, ForbiddenException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { DatabaseService } from 'src/database/database.service';
+import { NotificationService } from 'src/notification/notification.service';
 
 @Injectable()
 export class AssignmentService {
-  constructor(private readonly prisma: DatabaseService) { }
+  constructor(
+    private readonly prisma: DatabaseService,
+    private readonly notificationService: NotificationService,
+  ) { }
 
   /**
    * Helper: Get date only (strip time component) in UTC
@@ -14,10 +18,29 @@ export class AssignmentService {
     return new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0));
   }
 
-  create(createAssignmentDto: Prisma.ResponsibilityAssignmentCreateInput) {
-    return this.prisma.responsibilityAssignment.create({
+  async create(createAssignmentDto: Prisma.ResponsibilityAssignmentCreateInput) {
+    const assignment = await this.prisma.responsibilityAssignment.create({
       data: createAssignmentDto,
+      include: {
+        responsibility: { select: { title: true } },
+      },
     });
+
+    // Send notification to the assigned staff
+    try {
+      await this.notificationService.create({
+        userId: assignment.staffId,
+        title: 'New Responsibility Assigned',
+        message: `You have been assigned: ${assignment.responsibility?.title || 'a new responsibility'}`,
+        type: 'ASSIGNMENT_CREATED',
+        entityId: assignment.id,
+        entityType: 'ASSIGNMENT',
+      });
+    } catch (e) {
+      console.error('Failed to send assignment notification:', e);
+    }
+
+    return assignment;
   }
 
   findAll(responsibilityId?: number, staffId?: number) {

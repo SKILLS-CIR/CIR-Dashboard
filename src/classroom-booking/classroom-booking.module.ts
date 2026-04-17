@@ -2,9 +2,10 @@ import { Module } from '@nestjs/common';
 import { ClassroomBookingService } from './classroom-booking.service';
 import { ClassroomBookingController } from './classroom-booking.controller';
 import { DatabaseModule } from 'src/database/database.module';
+import { NotificationModule } from 'src/notification/notification.module';
 
 @Module({
-  imports: [DatabaseModule],
+  imports: [DatabaseModule, NotificationModule],
   controllers: [ClassroomBookingController],
   providers: [ClassroomBookingService],
 })

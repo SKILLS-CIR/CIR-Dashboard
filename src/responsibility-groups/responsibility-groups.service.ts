@@ -5,6 +5,7 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { DatabaseService } from 'src/database/database.service';
+import { NotificationService } from 'src/notification/notification.service';
 import {
   CreateResponsibilityGroupDto,
   UpdateResponsibilityGroupDto,
@@ -15,7 +16,10 @@ import {
 
 @Injectable()
 export class ResponsibilityGroupsService {
-  constructor(private readonly databaseService: DatabaseService) {}
+  constructor(
+    private readonly databaseService: DatabaseService,
+    private readonly notificationService: NotificationService,
+  ) {}
 
   /**
    * Create a new Responsibility Group
@@ -635,7 +639,7 @@ export class ResponsibilityGroupsService {
 
     const dueDate = assignDto.dueDate ? new Date(assignDto.dueDate) : undefined;
 
-    return this.databaseService.$transaction(async (tx) => {
+    const txResult = await this.databaseService.$transaction(async (tx) => {
       const results = {
         groupId,
         assignedTo: [] as any[],
@@ -711,6 +715,26 @@ export class ResponsibilityGroupsService {
     }, {
       timeout: 60000, // 60 seconds timeout for bulk assignments
     });
+
+    // Send notifications to all assigned staff (outside the transaction)
+    try {
+      for (const staffResult of txResult.assignedTo) {
+        if (staffResult.assignmentsCreated.length > 0) {
+          await this.notificationService.create({
+            userId: staffResult.staffId,
+            title: 'Responsibility Group Assigned',
+            message: `You have been assigned the responsibility group: ${group.name || 'a group'} (${staffResult.assignmentsCreated.length} tasks)`,
+            type: 'ASSIGNMENT_CREATED',
+            entityId: groupId,
+            entityType: 'RESPONSIBILITY_GROUP',
+          });
+        }
+      }
+    } catch (e) {
+      console.error('Failed to send group assignment notifications:', e);
+    }
+
+    return txResult;
   }
 
   /**

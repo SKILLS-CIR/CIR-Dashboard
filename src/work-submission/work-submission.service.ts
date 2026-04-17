@@ -1,10 +1,14 @@
 import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { DatabaseService } from 'src/database/database.service';
+import { NotificationService } from 'src/notification/notification.service';
 
 @Injectable()
 export class WorkSubmissionService {
-  constructor(private readonly databaseService: DatabaseService) { }
+  constructor(
+    private readonly databaseService: DatabaseService,
+    private readonly notificationService: NotificationService,
+  ) { }
 
   /**
    * Helper: Get date only (strip time component) in UTC
@@ -373,7 +377,7 @@ export class WorkSubmissionService {
     // 5. Update submission status (per-submission, not assignment-level)
     // Update only the WorkSubmission - NOT the assignment status
     // This allows each day's submission to have its own status
-    return this.databaseService.workSubmission.update({
+    const updated = await this.databaseService.workSubmission.update({
       where: { id: submissionId },
       data: {
         status: newStatus,
@@ -405,6 +409,25 @@ export class WorkSubmissionService {
         },
       },
     });
+
+    // 6. Notify the staff member about verification/rejection
+    try {
+      const respTitle = updated.assignment?.responsibility?.title || 'your submission';
+      await this.notificationService.create({
+        userId: submission.staffId,
+        title: approved ? 'Work Verified' : 'Work Rejected',
+        message: approved
+          ? `Your submission for "${respTitle}" has been verified.`
+          : `Your submission for "${respTitle}" was rejected. ${managerComment ? 'Reason: ' + managerComment : ''}`,
+        type: approved ? 'WORK_VERIFIED' : 'WORK_REJECTED',
+        entityId: updated.id,
+        entityType: 'WORK_SUBMISSION',
+      });
+    } catch (e) {
+      console.error('Failed to send verification notification:', e);
+    }
+
+    return updated;
   }
 
   /**
@@ -621,10 +644,69 @@ export class WorkSubmissionService {
     }
 
     // 8. Create the submission with workDate set to today
-    return this.create({
+    const submission = await this.create({
       ...createWorkSubmissionDto,
       workDate: today,
     });
+
+    // 9. Notify the manager of this sub-department and all admins
+    try {
+      const respTitle = assignment.responsibility?.title || 'a responsibility';
+      const staff = await this.databaseService.employee.findUnique({
+        where: { id: staffIdFromDto },
+        select: { name: true, subDepartmentId: true },
+      });
+      let subDeptName = '';
+      if (staff?.subDepartmentId) {
+        // Try to find manager: first check SubDepartment.managerId, then fallback to MANAGER role in sub-dept
+        const subDept = await this.databaseService.subDepartment.findUnique({
+          where: { id: staff.subDepartmentId },
+          select: { managerId: true, name: true, department: { select: { name: true } } },
+        });
+        subDeptName = subDept?.name || '';
+        const deptName = (subDept as any)?.department?.name || '';
+        const locationLabel = [deptName, subDeptName].filter(Boolean).join(' > ');
+
+        let managerUserId = subDept?.managerId;
+        if (!managerUserId) {
+          const mgr = await this.databaseService.employee.findFirst({
+            where: { subDepartmentId: staff.subDepartmentId, role: 'MANAGER', isActive: true },
+            select: { id: true },
+          });
+          managerUserId = mgr?.id || null;
+        }
+        if (managerUserId) {
+          await this.notificationService.create({
+            userId: managerUserId,
+            title: 'Work Submitted',
+            message: `${staff.name} submitted work for: ${respTitle}`,
+            type: 'WORK_SUBMITTED',
+            entityId: submission.id,
+            entityType: 'WORK_SUBMISSION',
+          });
+        }
+
+        // Also notify all admins (with department info)
+        const admins = await this.databaseService.employee.findMany({
+          where: { role: 'ADMIN', isActive: true },
+          select: { id: true },
+        });
+        for (const admin of admins) {
+          await this.notificationService.create({
+            userId: admin.id,
+            title: 'Work Submitted',
+            message: `${staff.name} (${locationLabel}) submitted work for: ${respTitle}`,
+            type: 'WORK_SUBMITTED',
+            entityId: submission.id,
+            entityType: 'WORK_SUBMISSION',
+          });
+        }
+      }
+    } catch (e) {
+      console.error('Failed to send work submission notification:', e);
+    }
+
+    return submission;
   }
 
   /**

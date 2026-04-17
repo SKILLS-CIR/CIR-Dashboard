@@ -6,10 +6,14 @@ import {
 } from '@nestjs/common';
 import { Role } from '@prisma/client';
 import { DatabaseService } from 'src/database/database.service';
+import { NotificationService } from 'src/notification/notification.service';
 
 @Injectable()
 export class ClassroomBookingService {
-  constructor(private readonly databaseService: DatabaseService) {}
+  constructor(
+    private readonly databaseService: DatabaseService,
+    private readonly notificationService: NotificationService,
+  ) {}
   private parseWeeklyDays(rule: string): number[] {
     // Example: FREQ=WEEKLY;BYDAY=MO,WE
     const match = rule.match(/BYDAY=([A-Z,]+)/);
@@ -165,6 +169,34 @@ export class ClassroomBookingService {
 
     // ===== NO RECURRENCE → DONE =====
     if (!dto.isRecurring || !dto.recurrenceRule || !dto.recurrenceEnd) {
+      // Notify the user their booking was created
+      try {
+        const classroom = await this.databaseService.classroom.findUnique({
+          where: { id: dto.classroomId },
+          select: { name: true },
+        });
+        await this.notificationService.create({
+          userId: bookedById,
+          title: 'Classroom Booked',
+          message: `Your booking for ${classroom?.name || 'classroom'} on ${bookingDate.toDateString()} has been confirmed.`,
+          type: 'CLASSROOM_BOOKED',
+          entityId: parent.id,
+          entityType: 'CLASSROOM_BOOKING',
+        });
+        // If booked by someone else (manager/admin for staff), also notify the requester
+        if (bookedById !== requesterId) {
+          await this.notificationService.create({
+            userId: requesterId,
+            title: 'Classroom Booked',
+            message: `Classroom ${classroom?.name || ''} booked successfully for staff on ${bookingDate.toDateString()}.`,
+            type: 'CLASSROOM_BOOKED',
+            entityId: parent.id,
+            entityType: 'CLASSROOM_BOOKING',
+          });
+        }
+      } catch (e) {
+        console.error('Failed to send booking notification:', e);
+      }
       return parent;
     }
 
@@ -383,13 +415,32 @@ export class ClassroomBookingService {
       throw new ForbiddenException('You can only cancel your own booking');
     }
 
-    return this.databaseService.classroomBooking.update({
+    const updated = await this.databaseService.classroomBooking.update({
       where: { id: bookingId },
       data: {
         isCancelled: true,
         cancelledAt: new Date(),
         cancelledById: userId,
       },
+      include: {
+        classroom: { select: { name: true } },
+      },
     });
+
+    // Notify the booking owner about cancellation
+    try {
+      await this.notificationService.create({
+        userId: booking.bookedById,
+        title: 'Booking Cancelled',
+        message: `Your booking for ${updated.classroom?.name || 'classroom'} has been cancelled.`,
+        type: 'BOOKING_CANCELLED',
+        entityId: updated.id,
+        entityType: 'CLASSROOM_BOOKING',
+      });
+    } catch (e) {
+      console.error('Failed to send cancellation notification:', e);
+    }
+
+    return updated;
   }
 }

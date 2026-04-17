@@ -20,6 +20,7 @@ import { ClassroomBookingModule } from './classroom-booking/classroom-booking.mo
 import { ClassroomModule } from './classroom/classroom.module';
 import { SemreportModule } from './semreport/semreport.module';
 import { TimetableModule } from './timetable/timetable.module';
+import { NotificationModule } from './notification/notification.module';
 
 @Module({
   imports: [
@@ -56,6 +57,7 @@ import { TimetableModule } from './timetable/timetable.module';
     ClassroomModule,
     SemreportModule,
     TimetableModule,
+    NotificationModule,
   ],
   controllers: [AppController],
   providers: [

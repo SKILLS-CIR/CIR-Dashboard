@@ -81,10 +81,8 @@ export class ProfileController {
             throw new BadRequestException('No file uploaded');
         }
 
-        // Construct the URL for the uploaded file using the request's origin
-        const protocol = req.protocol || 'http';
-        const host = req.get('host') || 'localhost:3000';
-        const avatarUrl = `${protocol}://${host}/uploads/${file.filename}`;
+        // Store as relative path - frontend will resolve with the correct backend URL
+        const avatarUrl = `/uploads/${file.filename}`;
 
         // Update the user's avatar in the database
         await this.profileService.updateAvatar(req.user.id, {

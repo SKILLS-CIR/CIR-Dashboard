@@ -210,6 +210,44 @@ export class WorkSubmissionService {
     });
   }
 
+  /**
+   * Protected findOne - securely fetches a submission, ensuring access control (fixes IDOR)
+   */
+  async findOneProtected(id: number, userId: number, userRole: string, userSubDepartmentId: number | null) {
+    const submission = await this.findOne(id);
+    if (!submission) {
+      throw new NotFoundException(`Work submission with ID ${id} not found`);
+    }
+
+    if (userRole === 'ADMIN') {
+      return submission;
+    }
+
+    if (userRole === 'STAFF') {
+      if (submission.staffId !== userId) {
+        throw new ForbiddenException('Staff can only view their own submissions');
+      }
+      return submission;
+    }
+
+    if (userRole === 'MANAGER') {
+      if (submission.staffId !== userId) {
+        // Manager can only view submissions from their own sub-department
+        const staff = await this.databaseService.employee.findUnique({
+          where: { id: submission.staffId },
+          select: { subDepartmentId: true },
+        });
+
+        if (staff?.subDepartmentId !== userSubDepartmentId) {
+          throw new ForbiddenException('Managers can only view submissions from their own sub-department');
+        }
+      }
+      return submission;
+    }
+
+    throw new ForbiddenException('Access denied');
+  }
+
   async update(id: number, updateWorkSubmissionDto: Prisma.WorkSubmissionUpdateInput) {
     try {
       return await this.databaseService.workSubmission.update({

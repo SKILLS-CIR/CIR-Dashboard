@@ -145,8 +145,13 @@ export class WorkSubmissionController {
 
   @Get(':id')
   @Roles('ADMIN', 'MANAGER', 'STAFF')
-  findOne(@Param('id', ParseIntPipe) id: number) {
-    return this.workSubmissionService.findOne(id);
+  findOne(@Param('id', ParseIntPipe) id: number, @Request() req) {
+    return this.workSubmissionService.findOneProtected(
+      id,
+      req.user.id,
+      req.user.role,
+      req.user.subDepartmentId,
+    );
   }
 
   @Patch(':id')

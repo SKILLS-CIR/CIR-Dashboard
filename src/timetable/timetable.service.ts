@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { Role } from '@prisma/client';
 import { DatabaseService } from 'src/database/database.service';
+import { NotificationService } from 'src/notification/notification.service';
 import { CreateTimetableEntryDto } from './dto/create-timetable-entry.dto';
 import { UpdateTimetableEntryDto } from './dto/update-timetable-entry.dto';
 
@@ -24,7 +25,10 @@ const VALID_DAYS = Object.keys(DAY_REFERENCE_DATES);
 
 @Injectable()
 export class TimetableService {
-  constructor(private readonly db: DatabaseService) {}
+  constructor(
+    private readonly db: DatabaseService,
+    private readonly notificationService: NotificationService,
+  ) {}
 
   // ─── Helpers ────────────────────────────────────────
 
@@ -602,7 +606,7 @@ export class TimetableService {
     }
 
     // Set published
-    return this.db.timetable.update({
+    const published = await this.db.timetable.update({
       where: { id: timetableId },
       data: { isPublished: true },
       include: {
@@ -615,6 +619,33 @@ export class TimetableService {
         },
       },
     });
+
+    // Notify all staff in the sub-department about the new timetable
+    try {
+      const staffMembers = await this.db.employee.findMany({
+        where: {
+          subDepartmentId: timetable.subDepartmentId,
+          isActive: true,
+          role: { in: [Role.STAFF, Role.MANAGER] },
+        },
+        select: { id: true },
+      });
+      const subDeptName = published.subDepartment?.name || 'your department';
+      for (const staff of staffMembers) {
+        await this.notificationService.create({
+          userId: staff.id,
+          title: 'Timetable Published',
+          message: `A new timetable has been published for ${subDeptName}. Check your schedule.`,
+          type: 'TIMETABLE_PUBLISHED',
+          entityId: timetableId,
+          entityType: 'TIMETABLE',
+        });
+      }
+    } catch (e) {
+      console.error('Failed to send timetable notifications:', e);
+    }
+
+    return published;
   }
 
   async unpublish(timetableId: number, userId: number) {

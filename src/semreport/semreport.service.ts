@@ -5,6 +5,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { DatabaseService } from '../database/database.service';
+import { NotificationService } from '../notification/notification.service';
 import { CreateSemreportDto } from './dto/create-semreport.dto';
 import { UpdateSemreportDto } from './dto/update-semreport.dto';
 import { ReviewSemreportDto } from './dto/review-semreport.dto';
@@ -36,7 +37,10 @@ const REPORT_INCLUDES = {
 
 @Injectable()
 export class SemreportService {
-  constructor(private readonly db: DatabaseService) {}
+  constructor(
+    private readonly db: DatabaseService,
+    private readonly notificationService: NotificationService,
+  ) {}
 
   // ─────────────────────────────────────────────
   // STAFF: Create a sem report
@@ -71,6 +75,42 @@ export class SemreportService {
       },
       include: REPORT_INCLUDES,
     });
+
+    // If submitted (not draft), notify the manager
+    if (targetStatus === 'UNDER_MANAGER_REVIEW') {
+      try {
+        const staff = await this.db.employee.findUnique({
+          where: { id: staffId },
+          select: { name: true, subDepartmentId: true },
+        });
+        if (staff?.subDepartmentId) {
+          const subDept = await this.db.subDepartment.findUnique({
+            where: { id: staff.subDepartmentId },
+            select: { managerId: true },
+          });
+          let managerUserId = subDept?.managerId;
+          if (!managerUserId) {
+            const mgr = await this.db.employee.findFirst({
+              where: { subDepartmentId: staff.subDepartmentId, role: 'MANAGER', isActive: true },
+              select: { id: true },
+            });
+            managerUserId = mgr?.id || null;
+          }
+          if (managerUserId) {
+            await this.notificationService.create({
+              userId: managerUserId,
+              title: 'Semester Report Submitted',
+              message: `${staff.name} submitted a semester report for review.`,
+              type: 'SEM_REPORT_SUBMITTED',
+              entityId: report.id,
+              entityType: 'SEM_REPORT',
+            });
+          }
+        }
+      } catch (e) {
+        console.error('Failed to send sem report notification:', e);
+      }
+    }
 
     return report;
   }
@@ -273,7 +313,7 @@ export class SemreportService {
     }
 
     if (dto.action === 'APPROVE') {
-      return this.db.semReport.update({
+      const updated = await this.db.semReport.update({
         where: { id: reportId },
         data: {
           status: 'UNDER_ADMIN_REVIEW',
@@ -282,8 +322,36 @@ export class SemreportService {
         },
         include: REPORT_INCLUDES,
       });
+      try {
+        await this.notificationService.create({
+          userId: report.staff.id,
+          title: 'Report Approved by Manager',
+          message: 'Your semester report has been approved by your manager and sent for admin review.',
+          type: 'SEM_REPORT_APPROVED',
+          entityId: reportId,
+          entityType: 'SEM_REPORT',
+        });
+        // Also notify all admins that a report is pending their review
+        const admins = await this.db.employee.findMany({
+          where: { role: 'ADMIN', isActive: true },
+          select: { id: true },
+        });
+        for (const admin of admins) {
+          await this.notificationService.create({
+            userId: admin.id,
+            title: 'Semester Report Pending Review',
+            message: `A semester report has been approved by manager and is awaiting your review.`,
+            type: 'SEM_REPORT_SUBMITTED',
+            entityId: reportId,
+            entityType: 'SEM_REPORT',
+          });
+        }
+      } catch (e) {
+        console.error('Failed to send sem report approval notification:', e);
+      }
+      return updated;
     } else {
-      return this.db.semReport.update({
+      const updated = await this.db.semReport.update({
         where: { id: reportId },
         data: {
           status: 'REJECTED',
@@ -295,6 +363,19 @@ export class SemreportService {
         },
         include: REPORT_INCLUDES,
       });
+      try {
+        await this.notificationService.create({
+          userId: report.staff.id,
+          title: 'Report Rejected',
+          message: `Your semester report was rejected. Reason: ${dto.rejectionReason || 'No reason provided'}`,
+          type: 'SEM_REPORT_REJECTED',
+          entityId: reportId,
+          entityType: 'SEM_REPORT',
+        });
+      } catch (e) {
+        console.error('Failed to send sem report rejection notification:', e);
+      }
+      return updated;
     }
   }
 
@@ -323,7 +404,7 @@ export class SemreportService {
     }
 
     if (dto.action === 'APPROVE') {
-      return this.db.semReport.update({
+      const updated = await this.db.semReport.update({
         where: { id: reportId },
         data: {
           status: 'APPROVED',
@@ -332,8 +413,21 @@ export class SemreportService {
         },
         include: REPORT_INCLUDES,
       });
+      try {
+        await this.notificationService.create({
+          userId: report.staffId,
+          title: 'Report Approved',
+          message: 'Your semester report has been approved by admin.',
+          type: 'SEM_REPORT_APPROVED',
+          entityId: reportId,
+          entityType: 'SEM_REPORT',
+        });
+      } catch (e) {
+        console.error('Failed to send admin approval notification:', e);
+      }
+      return updated;
     } else {
-      return this.db.semReport.update({
+      const updated = await this.db.semReport.update({
         where: { id: reportId },
         data: {
           status: 'REJECTED',
@@ -342,6 +436,19 @@ export class SemreportService {
         },
         include: REPORT_INCLUDES,
       });
+      try {
+        await this.notificationService.create({
+          userId: report.staffId,
+          title: 'Report Rejected by Admin',
+          message: `Your semester report was rejected by admin. Reason: ${dto.rejectionReason || 'No reason provided'}`,
+          type: 'SEM_REPORT_REJECTED',
+          entityId: reportId,
+          entityType: 'SEM_REPORT',
+        });
+      } catch (e) {
+        console.error('Failed to send admin rejection notification:', e);
+      }
+      return updated;
     }
   }
 

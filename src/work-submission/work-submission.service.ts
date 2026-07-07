@@ -637,16 +637,22 @@ export class WorkSubmissionService {
       throw new ForbiddenException('Cannot submit work for an assignment not assigned to this staff');
     }
 
-    // 5. Validate workDate - must be current date only (no backdating or future dating)
+    // 5. Validate workDate - must be within the allowed past 7 days (no future dating)
     const today = this.getTodayDateOnly();
     const workDate = createWorkSubmissionDto.workDate
       ? this.getDateOnly(new Date(createWorkSubmissionDto.workDate as string | Date))
       : today;
 
-    if (!this.isSameDay(workDate, today)) {
-      throw new BadRequestException(
-        'Work submissions can only be made for the current date. Backdated and future-dated submissions are not allowed.',
-      );
+    const PAST_DAYS_ALLOWED = 7;
+    const oldestAllowedDate = new Date(today);
+    oldestAllowedDate.setUTCDate(today.getUTCDate() - PAST_DAYS_ALLOWED);
+
+    if (workDate.getTime() > today.getTime()) {
+      throw new BadRequestException('Future-dated submissions are not allowed.');
+    }
+
+    if (workDate.getTime() < oldestAllowedDate.getTime()) {
+      throw new BadRequestException(`Work submissions can only be made for the past ${PAST_DAYS_ALLOWED} days. Backdating beyond this is not allowed.`);
     }
 
     // 6. Check if responsibility is active for this date

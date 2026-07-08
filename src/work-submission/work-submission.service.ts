@@ -643,7 +643,10 @@ export class WorkSubmissionService {
       ? this.getDateOnly(new Date(createWorkSubmissionDto.workDate as string | Date))
       : today;
 
-    const PAST_DAYS_ALLOWED = 7;
+    const lookbackSetting = await this.databaseService.appSettings.findUnique({
+      where: { key: 'work_submission_lookback_days' },
+    });
+    const PAST_DAYS_ALLOWED = lookbackSetting ? parseInt(lookbackSetting.value, 10) : 7;
     const oldestAllowedDate = new Date(today);
     oldestAllowedDate.setUTCDate(today.getUTCDate() - PAST_DAYS_ALLOWED);
 
@@ -677,20 +680,20 @@ export class WorkSubmissionService {
     const existingSubmission = await this.databaseService.workSubmission.findFirst({
       where: {
         assignmentId,
-        workDate: today,
+        workDate,
       },
     });
 
     if (existingSubmission) {
       throw new BadRequestException(
-        'Work submission already exists for this assignment today. Use update instead.',
+        'Work submission already exists for this assignment on this date. Use update instead.',
       );
     }
 
-    // 8. Create the submission with workDate set to today
+    // 8. Create the submission with the validated workDate (today or a past date within the allowed window)
     const submission = await this.create({
       ...createWorkSubmissionDto,
-      workDate: today,
+      workDate,
     });
 
     // 9. Notify the manager of this sub-department and all admins

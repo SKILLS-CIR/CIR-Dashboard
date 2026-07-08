@@ -21,6 +21,7 @@ import { ClassroomModule } from './classroom/classroom.module';
 import { SemreportModule } from './semreport/semreport.module';
 import { TimetableModule } from './timetable/timetable.module';
 import { NotificationModule } from './notification/notification.module';
+import { SettingsModule } from './settings/settings.module';
 
 @Module({
   imports: [
@@ -58,6 +59,7 @@ import { NotificationModule } from './notification/notification.module';
     SemreportModule,
     TimetableModule,
     NotificationModule,
+    SettingsModule,
   ],
   controllers: [AppController],
   providers: [

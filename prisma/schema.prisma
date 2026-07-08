@@ -551,3 +551,17 @@ model TimetableEntry {
   @@index([staffId])
   @@index([classroomId])
 }
+
+// ============================================
+// APPLICATION SETTINGS (Admin-configurable)
+// ============================================
+
+model AppSettings {
+  id        Int      @id @default(autoincrement())
+  key       String   @unique
+  value     String
+  label     String?  // Human-readable label for the setting
+  updatedAt DateTime @updatedAt
+
+  @@index([key])
+}

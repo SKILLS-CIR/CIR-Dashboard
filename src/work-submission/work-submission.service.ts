@@ -637,16 +637,25 @@ export class WorkSubmissionService {
       throw new ForbiddenException('Cannot submit work for an assignment not assigned to this staff');
     }
 
-    // 5. Validate workDate - must be current date only (no backdating or future dating)
+    // 5. Validate workDate - must be within the allowed past 7 days (no future dating)
     const today = this.getTodayDateOnly();
     const workDate = createWorkSubmissionDto.workDate
       ? this.getDateOnly(new Date(createWorkSubmissionDto.workDate as string | Date))
       : today;
 
-    if (!this.isSameDay(workDate, today)) {
-      throw new BadRequestException(
-        'Work submissions can only be made for the current date. Backdated and future-dated submissions are not allowed.',
-      );
+    const lookbackSetting = await this.databaseService.appSettings.findUnique({
+      where: { key: 'work_submission_lookback_days' },
+    });
+    const PAST_DAYS_ALLOWED = lookbackSetting ? parseInt(lookbackSetting.value, 10) : 7;
+    const oldestAllowedDate = new Date(today);
+    oldestAllowedDate.setUTCDate(today.getUTCDate() - PAST_DAYS_ALLOWED);
+
+    if (workDate.getTime() > today.getTime()) {
+      throw new BadRequestException('Future-dated submissions are not allowed.');
+    }
+
+    if (workDate.getTime() < oldestAllowedDate.getTime()) {
+      throw new BadRequestException(`Work submissions can only be made for the past ${PAST_DAYS_ALLOWED} days. Backdating beyond this is not allowed.`);
     }
 
     // 6. Check if responsibility is active for this date
@@ -671,20 +680,20 @@ export class WorkSubmissionService {
     const existingSubmission = await this.databaseService.workSubmission.findFirst({
       where: {
         assignmentId,
-        workDate: today,
+        workDate,
       },
     });
 
     if (existingSubmission) {
       throw new BadRequestException(
-        'Work submission already exists for this assignment today. Use update instead.',
+        'Work submission already exists for this assignment on this date. Use update instead.',
       );
     }
 
-    // 8. Create the submission with workDate set to today
+    // 8. Create the submission with the validated workDate (today or a past date within the allowed window)
     const submission = await this.create({
       ...createWorkSubmissionDto,
-      workDate: today,
+      workDate,
     });
 
     // 9. Notify the manager of this sub-department and all admins

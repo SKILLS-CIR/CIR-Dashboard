@@ -248,7 +248,7 @@ model Notification {
 
   createdAt   DateTime @default(now())
 
-  user        Employee @relation(fields: [userId], references: [id])
+  user        Employee @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 // Enums

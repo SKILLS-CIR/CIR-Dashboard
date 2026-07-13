@@ -40,6 +40,20 @@ export class ResponsibilitiesService {
       throw new BadRequestException('Sub-department is required to create responsibilities');
     }
 
+    // Server-side duplicate check: prevent creating responsibilities with same title + cycle + subDepartment
+    const existingDuplicate = await this.databaseService.responsibility.findFirst({
+      where: {
+        title: (createResponsibilityDto as any).title,
+        cycle: (createResponsibilityDto as any).cycle,
+        subDepartmentId: targetSubDepartmentId,
+      },
+    });
+    if (existingDuplicate) {
+      throw new BadRequestException(
+        `A responsibility with title "${(createResponsibilityDto as any).title}" already exists for cycle "${(createResponsibilityDto as any).cycle}" in this sub-department`,
+      );
+    }
+
     // Staff creating their own responsibility, OR explicitly explicitly marked (e.g., Manager self-service flow)
     if (userRole === 'STAFF' || isStaffCreated) {
       // Must be assigned to a sub-department

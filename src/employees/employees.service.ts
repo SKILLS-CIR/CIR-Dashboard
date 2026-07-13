@@ -53,11 +53,22 @@ export class EmployeesService {
   }
 
   async remove(id: number) {
+    // Validate the employee exists first
+    const employee = await this.databaseService.employee.findUnique({
+      where: { id },
+    });
+    if (!employee) {
+      throw new NotFoundException(`Employee with ID ${id} not found`);
+    }
+
+    // Explicitly delete notifications (belt-and-suspenders alongside schema cascade)
+    await this.databaseService.notification.deleteMany({
+      where: { userId: id },
+    });
+
     return this.databaseService.employee.delete({
-      where: {
-        id,
-      }
-    })
+      where: { id },
+    });
   }
 
   async changePassword(userId: number, currentPassword: string, newPassword: string) {

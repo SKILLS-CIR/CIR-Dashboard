@@ -11,7 +11,7 @@ env:
   POSTGRES_DB: postgres
   POSTGRES_HOST: postgres
   POSTGRES_PORT: 5432
-  DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres?schema=public
+  DIRECT_URL: postgresql://postgres:postgres@localhost:5432/postgres?schema=public
   JWT_SECRET: super-secret-jwt-key-for-testing
 
 jobs:
@@ -61,8 +61,8 @@ jobs:
       - name: Generate Prisma Client
         run: npx prisma generate
 
-      - name: Apply Prisma Migrations
-        run: npx prisma migrate deploy
+      - name: Push Prisma schema to test database
+        run: npx prisma db push --skip-generate
 
       - name: Run NestJS tests with verbose logging and coverage
         run: npm run test:cov -- --verbose --coverageReporters="text" --coverageReporters="json-summary"

@@ -3,7 +3,7 @@ name: NestJS Coverage Badge
 on:
   push:
     branches:
-      - main
+      - '**'
 
 env:
   POSTGRES_USER: postgres

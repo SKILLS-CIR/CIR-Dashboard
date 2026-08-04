@@ -8,6 +8,11 @@ export class Notification implements PrismaNotification {
   message: string;
   type: string;
 
+  targetType: string | null;
+  targetId: number | null;
+  isPinned: boolean;
+  createdById: number | null;
+
   entityId: number | null;
   entityType: string | null;
 
@@ -15,3 +20,4 @@ export class Notification implements PrismaNotification {
 
   createdAt: Date;
 }
+

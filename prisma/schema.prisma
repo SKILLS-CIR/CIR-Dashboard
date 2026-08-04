@@ -36,7 +36,8 @@ model Employee {
   assignments             ResponsibilityAssignment[] @relation("StaffAssignments")
   workSubmissions         WorkSubmission[]           @relation("StaffSubmissions")
   verifiedSubmissions     WorkSubmission[]           @relation("ManagerVerifications")
-  notifications           Notification[]
+  notifications           Notification[] @relation("NotificationRecipient")
+  createdNotifications    Notification[] @relation("NotificationAuthor")
   comments                Comment[]
 
   // Track who created this Employee (for admin tracking)
@@ -238,8 +239,13 @@ model Notification {
   userId      Int
 
   title       String
-  message     String
-  type        String
+  message     String   @db.Text
+  type        String   @default("NOTICE")
+
+  targetType  String?  // ALL, DEPARTMENT, SUB_DEPARTMENT, INDIVIDUAL
+  targetId    Int?     // departmentId or subDepartmentId
+  isPinned    Boolean  @default(false)
+  createdById Int?
 
   entityId    Int?
   entityType  String?
@@ -247,8 +253,13 @@ model Notification {
   isRead      Boolean  @default(false)
 
   createdAt   DateTime @default(now())
+  user        Employee  @relation("NotificationRecipient", fields: [userId], references: [id], onDelete: Cascade)
+  createdBy   Employee? @relation("NotificationAuthor", fields: [createdById], references: [id], onDelete: SetNull)
 
-  user        Employee @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([userId])
+  @@index([createdById])
+  @@index([targetType])
+  @@index([isPinned])
 }
 
 // Enums

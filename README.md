@@ -2,6 +2,11 @@
   <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
 </p>
 
+<p align="center">
+  <a href="https://github.com/AswinJ1/CIR-Dashboard/actions/workflows/coverage.yaml"><img src="./coverage.svg" alt="Test Coverage" /></a>
+  <a href="https://github.com/AswinJ1/CIR-Dashboard/actions/workflows/coverage.yaml"><img src="https://github.com/AswinJ1/CIR-Dashboard/actions/workflows/coverage.yaml/badge.svg" alt="Coverage CI" /></a>
+</p>
+
 [circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
 [circleci-url]: https://circleci.com/gh/nestjs/nest
 

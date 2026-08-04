@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ResponsibilityGroupsService } from './responsibility-groups.service';
 import { DatabaseService } from 'src/database/database.service';
+import { NotificationService } from 'src/notification/notification.service';
 
 describe('ResponsibilityGroupsService', () => {
   let service: ResponsibilityGroupsService;
@@ -39,6 +40,10 @@ describe('ResponsibilityGroupsService', () => {
     $transaction: jest.fn((callback) => callback(mockDatabaseService)),
   };
 
+  const mockNotificationService = {
+    create: jest.fn(),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -46,6 +51,10 @@ describe('ResponsibilityGroupsService', () => {
         {
           provide: DatabaseService,
           useValue: mockDatabaseService,
+        },
+        {
+          provide: NotificationService,
+          useValue: mockNotificationService,
         },
       ],
     }).compile();

@@ -148,9 +148,11 @@ export class NotificationService {
       const notices = await prisma.notification.findMany({
         where: { type: 'NOTICE' },
         orderBy: { createdAt: 'desc' },
-        distinct: ['title', 'createdAt', 'createdById'],
         include: {
           createdBy: {
+            select: { id: true, name: true, email: true, role: true },
+          },
+          user: {
             select: { id: true, name: true, email: true, role: true },
           },
         },
@@ -173,9 +175,14 @@ export class NotificationService {
             createdAt: n.createdAt,
             type: n.type,
             recipientCount: 0,
+            recipients: [],
           });
         }
-        grouped.get(key).recipientCount++;
+        const item = grouped.get(key);
+        item.recipientCount++;
+        if (n.user && !item.recipients.some((r: any) => r.id === n.user.id)) {
+          item.recipients.push(n.user);
+        }
       }
 
       return Array.from(grouped.values());
@@ -202,9 +209,11 @@ export class NotificationService {
         OR: managerConditions,
       },
       orderBy: { createdAt: 'desc' },
-      distinct: ['title', 'createdAt', 'createdById'],
       include: {
         createdBy: {
+          select: { id: true, name: true, email: true, role: true },
+        },
+        user: {
           select: { id: true, name: true, email: true, role: true },
         },
       },
@@ -227,9 +236,14 @@ export class NotificationService {
           createdAt: n.createdAt,
           type: n.type,
           recipientCount: 0,
+          recipients: [],
         });
       }
-      grouped.get(key).recipientCount++;
+      const item = grouped.get(key);
+      item.recipientCount++;
+      if (n.user && !item.recipients.some((r: any) => r.id === n.user.id)) {
+        item.recipients.push(n.user);
+      }
     }
 
     return Array.from(grouped.values());

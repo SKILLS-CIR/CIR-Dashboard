@@ -44,6 +44,7 @@ describe('ClassroomBookingController', () => {
   describe('create', () => {
     it('should call service.create with dto and user id from request', async () => {
       const dto: CreateClassroomBookingDto = {
+        title: 'Test Booking',
         classroomId: 1,
         bookingDate: '2026-08-04',
         startTime: '2026-08-04T10:00:00Z',
